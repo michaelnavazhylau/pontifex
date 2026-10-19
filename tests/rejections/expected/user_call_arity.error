@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/user_call_arity.py:6:12: call to 'helper' expects 1 argument(s), got 2

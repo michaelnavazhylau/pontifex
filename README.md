@@ -42,6 +42,7 @@ no `sorry`, no `native_decide` in certificates.
 | Free-fall position after `n` steps | **Proved** (`repeatStep_position_twice`) |
 | Translation of Python source to the core AST | **Trusted + tested**, not proved |
 | Array reads, updates, and `len` | **Kernel-checked** per program; bad/out-of-range index is `failed .indexOutOfBounds` |
+| Bounded white-box helper calls | **Kernel-checked** expansion plus compositional per-callee lowering evidence |
 | Native binary64/CPU arithmetic | **Tested bit-for-bit**, not proved |
 | Native Python numeric tower and exceptions | **Out of scope** |
 
@@ -268,7 +269,8 @@ policy, the two-tier `FloatSpec` lemmas, and the computed-NaN allowlist.
 
 ## Supported Python subset (v0)
 
-One function per module, scalar parameters, and:
+One function per module, or an explicitly selected entry point (`--function`)
+with module-local helpers; scalar parameters, and:
 
 * statements: `x = e`, `x: T = e`, `x += e` (`-=`, `*=`, `/=`), `if`/`else`,
   `while`, `pass`, `return` of scalars (early returns allowed; every path must
@@ -281,7 +283,13 @@ One function per module, scalar parameters, and:
   tagged slots: an update writes a fresh array slot, so there is no aliasing.
   Array parameters, array returns, nested arrays, and augmented subscript
   assignment are rejected. A bad index (fractional, negative) and an
-  out-of-range integer index both produce `failed .indexOutOfBounds`.
+  out-of-range integer index both produce `failed .indexOutOfBounds`;
+* bounded white-box calls: `x = helper(...)`, `x: T = helper(...)`, and
+  `return helper(...)`, with positional scalar arguments and straight-line,
+  single-scalar helpers (including acyclic helper chains). Caller control flow
+  remains supported. Callee control flow, nested expression calls, tuple/array
+  results, keyword/starred calls, and recursion are deferred. See
+  [`docs/CALLS.md`](docs/CALLS.md) for the boundary and compositional certificates.
 
 Everything else is rejected with a located, snapshotted diagnostic — no imports,
 `for`, `break`/`continue`, `try`, `with`, lambdas, comprehensions, attribute
@@ -292,9 +300,9 @@ access, `min`/`max`, conditional expressions, or tuple unpacking.
 ## Validation
 
 ```text
-373 tests (frontend, interpreter, Lean proofs, corpora)
-25-program differential corpus · CPython / exact IR / binary64 IR / Lean oracle
-65 rejected programs with committed diagnostics
+451 tests (frontend, interpreter, Lean proofs, corpora)
+28-program differential corpus · CPython / exact IR / binary64 IR / Lean oracle
+77 rejected programs with committed diagnostics
 100,000 random binary64 patterns + IEEE edge cases → 269,724 comparisons,
 0 unallowlisted mismatches (451 explicitly counted computed-NaN exemptions)
 ```
@@ -313,6 +321,7 @@ Pontifex/
   Core/IR.lean           deep embedding: Expr, Cond, Phi, Stmt, Fn
   Core/Source.lean       core source syntax (pre-SSA), ids instead of names
   Core/Lower.lean        reference SSA lowering, agreement checked per program
+  Core/Inline.lean       kernel-reducible bounded white-box expansion
   Core/Ops.lean          Rat, Float, and two-tier binary64 backends
   Core/Semantics.lean    total structured-fuel semantics and outcomes
   Core/Refinement.lean   fuel monotonicity, total/partial specifications
@@ -351,9 +360,10 @@ scripts/                 generation, corpora, boundary checks, GIF renderer
 * build-time axiom, schema, rejection, corpus, and Float-boundary gates.
 
 **P3 — language growth:** multi-exit returns and one-dimensional state vectors
-with bounds failures are implemented; next are function calls (inline then
-summaries), an opacity lattice with a verified-path assertion, and Python
-integer/`min`/`max`/conditional semantics.
+with bounds failures are implemented. Function calls are in progress: bounded
+white-box scalar helpers now inline with compositional certificates; broader
+call shapes and summaries remain open. Next are an opacity lattice with a
+verified-path assertion and Python integer/`min`/`max`/conditional semantics.
 
 **Research:** a recursively verified source semantics/frontend, native IEEE
 arithmetic proofs, rational-coefficient normalization, and a CFG-first IR with
@@ -394,6 +404,7 @@ certificate** for its small language.
 * [`docs/FLOAT_POLICY.md`](docs/FLOAT_POLICY.md) — bits, NaNs, failures, power,
   two-tier specs, and the native-arithmetic boundary.
 * [`docs/STEP_TACTIC.md`](docs/STEP_TACTIC.md) — `pontifex_step` usage and limits.
+* [`docs/CALLS.md`](docs/CALLS.md) — bounded white-box calls and compositional evidence.
 * [`docs/RELATED_WORK.md`](docs/RELATED_WORK.md) — Charon/Aeneas review and
   ranked lessons.
 * [`TODO.md`](TODO.md) — ordered implementation roadmap.

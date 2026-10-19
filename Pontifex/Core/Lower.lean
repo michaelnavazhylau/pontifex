@@ -22,6 +22,7 @@
 import Std
 import Pontifex.Core.IR
 import Pontifex.Core.Source
+import Pontifex.Core.Inline
 
 namespace Pontifex.Source
 
@@ -109,6 +110,7 @@ mutual
 /-- Assigned variables of a single statement. -/
 def assignedStmt : Stmt → List Nat
   | .assign v _ => [v]
+  | .inlineCall target _ _ _ => target.toList
   | .ite _ t e => assignedNames t ++ assignedNames e
   | .whil _ b => assignedNames b
   | .ret _ => []
@@ -161,6 +163,7 @@ mutual
 /-- True when a statement never falls through to the next statement. -/
 def stmtReturns : Stmt → Bool
   | .ret _ => true
+  | .inlineCall target _ _ _ => target.isNone
   | .ite _ t e => blockReturns t && blockReturns e
   | _ => false
 
@@ -195,6 +198,16 @@ def lowerStmt (st : LowerState) : Stmt →
       let e' ← lowerExpr st e
       let (slot, st') := st.bindFresh v
       return (.assign slot e', st')
+  | .inlineCall target arity body args => do
+      let slots := Inline.frameSize arity body
+      let args' ← lowerExprs st args
+      let resultSlot := target.map (fun _ => st.next + slots)
+      let body' ← Inline.expand st.next arity resultSlot body args'
+      let st' := { st with next := st.next + slots }
+      let st'' := match target with
+        | none => st'
+        | some v => (st'.bindFresh v).2
+      return (body', st'')
   | .ret es => do
       let es' ← es.mapM (lowerExpr st)
       return (.ret es', st)

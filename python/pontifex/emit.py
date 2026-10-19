@@ -380,10 +380,31 @@ def emit_module(
     lines.append(f"#guard pontifexConfig.fuelPolicy == .{fuel_policy}")
     lines.append(f"#guard pontifexConfig.numericMode == .{NUMERIC_MODE_EXACT_RAT}")
     lines.append("")
+    # Private namespaces avoid collisions with caller locals, generated suffixes,
+    # and other helper names. Every helper retains its own lowering/code linkage.
+    callees: dict[str, str] = {}
+    for index, callee in enumerate(translated.callees):
+        callee_ns = f"Callee{index}"
+        module = emit_module(callee, namespace=callee_ns, fuel=fuel, generator=generator)
+        lines.append(module[module.index(f"namespace {callee_ns}\n"):])
+        callees[callee.function_name] = f"{callee_ns}.{callee.function_name}"
     lines.append(ir_declaration(fn.name, fn))
     from .source import desugar, source_declaration
 
-    lines.append(source_declaration(fn.name, desugar(translated)))
+    lines.append(source_declaration(fn.name, desugar(translated), callees))
+    facts = [f"Source.lowerBody {fn.name}Source = .ok {fn.name}IR.body"]
+    proofs = [f"{fn.name}_lowering"]
+    for ref in callees.values():
+        facts.append(f"{ref}_program_lowering_spec")
+        proofs.append(f"{ref}_program_lowering")
+    proposition = " ∧\n    ".join(facts)
+    proof = proofs[0] if len(proofs) == 1 else "⟨" + ", ".join(proofs) + "⟩"
+    lines.append(
+        f"/-- Own lowering and the recursively composed lowering evidence of every callee. -/\n"
+        f"def {fn.name}_program_lowering_spec : Prop :=\n    {proposition}\n\n"
+        f"theorem {fn.name}_program_lowering : {fn.name}_program_lowering_spec :=\n"
+        f"  {proof}\n"
+    )
     if straight_line:
         lines.append(f"/-- Direct Lean translation of the Python function `{fn.name}`. -/")
         lines.append(f"def {fn.name} (_fuel : Nat) {binder} : {option_type(arity)} :=")

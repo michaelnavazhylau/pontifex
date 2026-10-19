@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/shadow_builtin.py:2:12: callable 'abs' is shadowed by a local variable

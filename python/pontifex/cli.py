@@ -88,7 +88,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
         namespace=namespace,
         fuel=args.fuel,
         conformance=conformance,
-        generator=f"python -m pontifex compile {args.file}",
+        generator=f"python -m pontifex compile {args.file}" + (f" --function {args.function}" if args.function else ""),
     )
     Path(args.out).write_text(lean)
     if args.json:
@@ -122,10 +122,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     def source_options(p: argparse.ArgumentParser) -> None:
-        p.add_argument("file", help="Python source file containing one function")
+        p.add_argument("file", help="Python source module (select an entry point with --function)")
         p.add_argument("--function", default=None, help="function to translate")
         p.add_argument("--namespace", default=None, help="Lean namespace")
-        p.add_argument("--fuel", type=int, default=64, help="loop fuel for emitted code")
+        p.add_argument("--fuel", type=int, default=64, help="structured fuel for the expanded IR")
 
     p_ir = sub.add_parser("ir", help="print the SSA IR as JSON")
     source_options(p_ir)

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/user_call_control_flow.py:2:5: inlined helper 'helper' must have a straight-line body; callee control flow is deferred

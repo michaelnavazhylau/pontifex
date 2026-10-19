@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/user_call_array.py:7:19: 'xs' is an array and cannot be used where a scalar is expected (index it, take its length, or return a scalar)

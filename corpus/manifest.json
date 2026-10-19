@@ -603,6 +603,35 @@
           "max": 2
         }
       ]
+    },
+    {
+      "file": "call_step.py",
+      "function": "advance",
+      "fuel": 128,
+      "params": [
+        {"kind": "rat", "min": -4, "max": 4},
+        {"kind": "rat", "min": -4, "max": 4},
+        {"kind": "rat", "min": -4, "max": 4},
+        {"kind": "rat", "min": -4, "max": 4}
+      ]
+    },
+    {
+      "file": "call_loop.py",
+      "function": "advance",
+      "fuel": 128,
+      "params": [
+        {"kind": "rat", "min": -4, "max": 8},
+        {"kind": "nat", "max": 6}
+      ]
+    },
+    {
+      "file": "call_failure.py",
+      "function": "advance",
+      "fuel": 64,
+      "params": [
+        {"kind": "rat", "min": -2, "max": 2},
+        {"kind": "rat", "min": -2, "max": 2}
+      ]
     }
   ]
 }

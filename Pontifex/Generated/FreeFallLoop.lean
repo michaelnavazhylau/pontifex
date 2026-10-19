@@ -49,6 +49,13 @@ theorem simulate_lowering :
     Source.lowerBody simulateSource = .ok simulateIR.body :=
   rfl
 
+/-- Own lowering and the recursively composed lowering evidence of every callee. -/
+def simulate_program_lowering_spec : Prop :=
+    Source.lowerBody simulateSource = .ok simulateIR.body
+
+theorem simulate_program_lowering : simulate_program_lowering_spec :=
+  simulate_lowering
+
 /-- Specialized executable block (no IR interpreter calls). -/
 def simulate_block1 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel

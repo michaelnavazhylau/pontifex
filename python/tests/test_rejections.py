@@ -1,6 +1,7 @@
 """P0/T3: the rejection corpus and its committed diagnostics."""
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 
@@ -14,12 +15,13 @@ from conftest import ROOT
 CASES = ROOT / "tests" / "rejections" / "cases"
 EXPECTED = ROOT / "tests" / "rejections" / "expected"
 CASE_PATHS = sorted(CASES.glob("*.py"))
+FUNCTIONS = json.loads((CASES.parent / "functions.json").read_text())
 
 
 def _diagnose(path):
     relative = path.relative_to(ROOT).as_posix()
     with pytest.raises(FrontendError) as info:
-        translate(path.read_text(), filename=relative)
+        translate(path.read_text(), filename=relative, function=FUNCTIONS.get(path.name))
     return f"{type(info.value).__name__}\n{info.value}\n"
 
 
@@ -43,6 +45,7 @@ def test_diagnostics_are_deterministic(path):
 
 
 def test_no_orphan_snapshots():
+    assert set(FUNCTIONS) <= {p.name for p in CASE_PATHS}
     expected = {p.stem for p in CASE_PATHS}
     snapshots = {p.stem for p in EXPECTED.glob("*.error")}
     assert snapshots <= expected, snapshots - expected

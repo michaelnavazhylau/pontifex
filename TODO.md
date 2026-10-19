@@ -27,8 +27,8 @@ Sizes: **S** ≤ 1 day, **M** 2–4 days, **L** > 1 week.
 ## P0 — trust plumbing and test corpus — ✅ complete
 
 Implemented in this repository: schema/config stamping with `#guard`, build-time
-axiom auditing of every certificate, 65 committed rejection snapshots, and a
-25-program triple-differential corpus (both corpora have grown since P0 closed;
+axiom auditing of every certificate, 77 committed rejection snapshots, and a
+28-program triple-differential corpus (both corpora have grown since P0 closed;
 see the current counts in [README](README.md#validation)).
 
 ### ✅ T1. Stamp the artifact configuration and guard it — **S**, low risk
@@ -297,13 +297,35 @@ arrays remain out of scope. T13 calls will meet the value model as it stands:
 arrays are functional values, so passing or returning one is copy-free until
 aliasing is modelled.
 
-### T13. Function calls — **L**
+### T13. Function calls — **L**, in progress
 
-Start with white-box inlining of callables in the subset (no recursion); then
-calls with summaries. Keep the lowering certificate compositional (per callee).
+**First slice implemented:** white-box expansion of module-local straight-line,
+single-scalar helpers at complete assignment/annotated-assignment/return sites.
+Arguments are positional scalar expressions, evaluated once in order before
+callee work, including unused arguments. Fresh private slot frames isolate
+callee locals and parameter reassignments. Forward references and acyclic
+helper chains work; caller branches, loops, early returns, and arrays retain
+their existing rules. No runtime call node or JSON/schema change (still 3).
 
-**Acceptance.** A two-function program where the caller’s certificate references
-the callee’s, both `rfl`/kernel-checked.
+The core Source AST references each independently emitted callee IR. The Lean
+`Inline.expand` reference algorithm reproduces the Python expansion inside the
+caller's `_lowering := rfl`. `<fn>_program_lowering` composes that fact with
+all per-callee program certificates recursively, so the callee's source/IR
+agreement is checked too. The usual code linkage proves the expanded code/IR
+agreement. Inlining fidelity remains tested, not a universal preservation proof.
+See [`docs/CALLS.md`](docs/CALLS.md).
+
+**First-slice acceptance met:** `examples/call_step.py` emits a caller program
+certificate referencing the helper's certificate, with both lowering facts
+`rfl`/kernel-checked and every certificate axiom-audited. Regression coverage
+includes transitive helpers, control-flow callers, private locals, eager faults,
+JSON round trips, kernel mutation rejection, three call corpus programs, and
+located rejection snapshots.
+
+**Still open (T13 is not complete):** callee branches/loops/early returns,
+calls nested in expressions/conditions/arguments, tuple results/unpacking,
+keyword/starred/ignored-result calls, array arguments/results/locals in helpers,
+and calls with summaries. Recursion and external calls remain unsupported.
 
 ### T14. Opacity lattice and verified-path assertion — **M**
 
@@ -364,7 +386,8 @@ subsumed by the tower or explicitly documented as the remaining exception.
    normalization remain open.
 4. ✅ **T11–T12** complete: early returns and one-dimensional arrays with bounds
    failures.
-5. **Next:** **T13** (function calls). **T15a** (`min`/`max`/conditional
+5. **In progress:** **T13** (bounded white-box calls landed; broader call shapes
+   and summaries remain). **T15a** (`min`/`max`/conditional
    expressions) is the cheap parallel win, and **T14** (opacity) can follow
    calls. **T15b** should be a design spike before any further numeric growth.
 6. **Tooling, independent of P3:** [#16](https://github.com/michaelnavazhylau/pontifex/issues/16)

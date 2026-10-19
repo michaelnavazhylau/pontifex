@@ -1,0 +1,134 @@
+{
+  "irVersion": 3,
+  "name": "advance",
+  "params": [
+    "x",
+    "v",
+    "a",
+    "dt"
+  ],
+  "slotNames": [
+    "x",
+    "v",
+    "a",
+    "dt",
+    "velocity#v",
+    "velocity#a",
+    "velocity#dt",
+    "velocity#delta",
+    "velocity#v_1",
+    "v_1",
+    "x_1"
+  ],
+  "body": {
+    "k": "seq",
+    "ss": [
+      {
+        "k": "seq",
+        "ss": [
+          {
+            "k": "assign",
+            "slot": 4,
+            "e": {
+              "k": "slot",
+              "i": 1
+            }
+          },
+          {
+            "k": "assign",
+            "slot": 5,
+            "e": {
+              "k": "slot",
+              "i": 2
+            }
+          },
+          {
+            "k": "assign",
+            "slot": 6,
+            "e": {
+              "k": "slot",
+              "i": 3
+            }
+          },
+          {
+            "k": "assign",
+            "slot": 7,
+            "e": {
+              "k": "bin",
+              "op": "mul",
+              "l": {
+                "k": "slot",
+                "i": 5
+              },
+              "r": {
+                "k": "slot",
+                "i": 6
+              }
+            }
+          },
+          {
+            "k": "assign",
+            "slot": 8,
+            "e": {
+              "k": "bin",
+              "op": "add",
+              "l": {
+                "k": "slot",
+                "i": 4
+              },
+              "r": {
+                "k": "slot",
+                "i": 7
+              }
+            }
+          },
+          {
+            "k": "assign",
+            "slot": 9,
+            "e": {
+              "k": "slot",
+              "i": 8
+            }
+          }
+        ]
+      },
+      {
+        "k": "assign",
+        "slot": 10,
+        "e": {
+          "k": "bin",
+          "op": "add",
+          "l": {
+            "k": "slot",
+            "i": 0
+          },
+          "r": {
+            "k": "bin",
+            "op": "mul",
+            "l": {
+              "k": "slot",
+              "i": 9
+            },
+            "r": {
+              "k": "slot",
+              "i": 3
+            }
+          }
+        }
+      },
+      {
+        "k": "ret",
+        "es": [
+          {
+            "k": "slot",
+            "i": 10
+          },
+          {
+            "k": "slot",
+            "i": 9
+          }
+        ]
+      }
+    ]
+  }
+}

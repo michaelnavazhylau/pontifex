@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/recursive_call.py:2:12: recursive calls are not supported: f -> f

@@ -50,6 +50,13 @@ theorem advance_lowering :
     Source.lowerBody advanceSource = .ok advanceIR.body :=
   rfl
 
+/-- Own lowering and the recursively composed lowering evidence of every callee. -/
+def advance_program_lowering_spec : Prop :=
+    Source.lowerBody advanceSource = .ok advanceIR.body
+
+theorem advance_program_lowering : advance_program_lowering_spec :=
+  advance_lowering
+
 /-- Specialized executable block (no IR interpreter calls). -/
 def advance_block1 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel

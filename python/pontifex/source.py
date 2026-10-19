@@ -140,6 +140,13 @@ class Assign(SStmt):
 
 
 @dataclass(frozen=True)
+class InlineCall(SStmt):
+    target: int | None
+    callee: str
+    args: tuple[SExpr, ...]
+
+
+@dataclass(frozen=True)
 class Ite(SStmt):
     cond: SCond
     then_: tuple[SStmt, ...]
@@ -209,9 +216,10 @@ class _NameTable:
 
 
 class _Desugar:
-    def __init__(self, fn: ast.FunctionDef, filename: str):
+    def __init__(self, fn: ast.FunctionDef, filename: str, callees: Sequence[Translated] = ()):
         self.fn = fn
         self.filename = filename
+        self.callees = {callee.function_name for callee in callees}
         self.ids = _NameTable(fn)
 
     def err(self, node: ast.AST, msg: str) -> UnsupportedError:
@@ -303,6 +311,11 @@ class _Desugar:
     def block(self, nodes: Sequence[ast.stmt]) -> tuple[SStmt, ...]:
         return tuple(self.stmt(node) for node in nodes)
 
+    def call(self, value: ast.expr, target: int | None) -> InlineCall | None:
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id in self.callees:
+            return InlineCall(target, value.func.id, tuple(self.expr(arg) for arg in value.args))
+        return None
+
     def stmt(self, node: ast.stmt) -> SStmt:
         if isinstance(node, ast.Pass):
             return Skip()
@@ -324,11 +337,13 @@ class _Desugar:
                 )
             if not isinstance(target, ast.Name):
                 raise self.err(node, "only 'name = expr' and 'xs[i] = expr' are supported")
-            return Assign(self.ids(target.id), self.expr(node.value))
+            var = self.ids(target.id)
+            return self.call(node.value, var) or Assign(var, self.expr(node.value))
         if isinstance(node, ast.AnnAssign):
             if not isinstance(node.target, ast.Name) or node.value is None:
                 raise self.err(node, "only 'name: type = expr' is supported")
-            return Assign(self.ids(node.target.id), self.expr(node.value))
+            var = self.ids(node.target.id)
+            return self.call(node.value, var) or Assign(var, self.expr(node.value))
         if isinstance(node, ast.AugAssign):
             if not isinstance(node.target, ast.Name):
                 raise self.err(node, "only augmented assignment to a name is supported")
@@ -346,6 +361,9 @@ class _Desugar:
         if isinstance(node, ast.Return):
             if node.value is None:
                 raise self.err(node, "return must produce at least one scalar")
+            call = self.call(node.value, None)
+            if call is not None:
+                return call
             if isinstance(node.value, ast.Tuple):
                 return Ret(tuple(self.expr(e) for e in node.value.elts))
             return Ret((self.expr(node.value),))
@@ -365,7 +383,7 @@ def desugar(translated: Translated) -> SourceFn:
     matches = [f for f in functions if f.name == translated.function_name]
     if not matches:  # pragma: no cover - frontend guarantees selection
         raise FrontendError(f"no function named {translated.function_name!r}")
-    return _Desugar(matches[0], translated.filename).source_fn()
+    return _Desugar(matches[0], translated.filename, translated.callees).source_fn()
 
 
 # ---------------------------------------------------------------------------
@@ -418,26 +436,34 @@ def _cond(c: SCond) -> str:
     raise TypeError(type(c))
 
 
-def _stmt(s: SStmt) -> str:
+def _stmt(s: SStmt, callees: dict[str, str]) -> str:
+    if isinstance(s, InlineCall):
+        callee = callees[s.callee]
+        target = "none" if s.target is None else f"(some {s.target})"
+        args = ", ".join(_expr(arg) for arg in s.args)
+        return (
+            f"(.inlineCall {target} {callee}Source.paramIds.length "
+            f"{callee}IR.body [{args}])"
+        )
     if isinstance(s, Skip):
         return ".skip"
     if isinstance(s, Assign):
         return f"(.assign {s.var} {_expr(s.expr)})"
     if isinstance(s, Ite):
-        then = ", ".join(_stmt(x) for x in s.then_)
-        other = ", ".join(_stmt(x) for x in s.else_)
+        then = ", ".join(_stmt(x, callees) for x in s.then_)
+        other = ", ".join(_stmt(x, callees) for x in s.else_)
         return f"(.ite {_cond(s.cond)} [{then}] [{other}])"
     if isinstance(s, While):
-        body = ", ".join(_stmt(x) for x in s.body)
+        body = ", ".join(_stmt(x, callees) for x in s.body)
         return f"(.whil {_cond(s.cond)} [{body}])"
     if isinstance(s, Ret):
         return "(.ret [" + ", ".join(_expr(e) for e in s.exprs) + "])"
     raise TypeError(type(s))
 
 
-def source_declaration(name: str, fn: SourceFn) -> str:
+def source_declaration(name: str, fn: SourceFn, callees: dict[str, str] | None = None) -> str:
     params = ", ".join(str(i) for i in fn.param_ids)
-    body = "\n      ".join(_stmt(s) + "," for s in fn.body)
+    body = "\n      ".join(_stmt(s, callees or {}) + "," for s in fn.body)
     return (
         f"/-- Core source AST of the Python function, with names replaced by ids\n"
         f"    assigned in sorted name order (see `pontifex/source.py`). -/\n"
