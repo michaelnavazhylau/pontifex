@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render docs/assets/pipeline.gif — the pyverif architecture animation.
+"""Render docs/assets/pipeline.gif — the pontifex architecture animation.
 
 The diagram is code, not a hand-edited binary: run this script to regenerate the
 GIF and the static preview PNG. Requires Pillow (dev dependency).
@@ -208,8 +208,8 @@ def render(t: float) -> Image.Image:
     # ---- header ----------------------------------------------------------
     a = fade(t, 0.0, 0.6)
     layer = new_layer()
-    text(layer, (42, 26), "pyverif", F_TITLE, TEXT)
-    text(layer, (186, 38), "Python → Lean 4 verification bridge", F_SUB, MUTED)
+    text(layer, (42, 26), "Pontifex", F_TITLE, TEXT)
+    text(layer, (212, 38), "Python → Lean 4 verification bridge", F_SUB, MUTED)
     text(layer, (44, 72), "A kernel-checked translation pipeline for a scalar Python subset", F_BODY, FAINT)
     composite(img, layer, a)
 

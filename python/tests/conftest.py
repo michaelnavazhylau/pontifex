@@ -10,8 +10,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "python"))
 
-from pyverif.frontend import Translated, translate  # noqa: E402
-from pyverif.pipeline import find_lean_exe  # noqa: E402
+from pontifex.frontend import Translated, translate  # noqa: E402
+from pontifex.pipeline import find_lean_exe  # noqa: E402
 
 EXAMPLES = ROOT / "examples"
 
@@ -33,7 +33,7 @@ def translate_example(stem: str) -> Translated:
 def lean_exe() -> Path:
     exe = find_lean_exe(ROOT)
     if exe is None:
-        pytest.skip("Lean runner not built; run `lake build pyverif`")
+        pytest.skip("Lean runner not built; run `lake build pontifex`")
     return exe
 
 

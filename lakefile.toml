@@ -1,14 +1,14 @@
-name = "pyverif"
+name = "pontifex"
 version = "0.1.0"
-defaultTargets = ["PyVerif", "pyverif"]
+defaultTargets = ["Pontifex", "pontifex"]
 
 # Core-Lean-only build (no Mathlib, no Physlib).  See docs/TRUST.md for the
-# consequences: everything in `PyVerif/Core` is proved, but general polynomial
+# consequences: everything in `Pontifex/Core` is proved, but general polynomial
 # identities over `Rat` cannot be discharged without a ring tactic, so domain
-# proofs that need one are marked in `PyVerif/Spec/Mechanics.lean`.
+# proofs that need one are marked in `Pontifex/Spec/Mechanics.lean`.
 [[lean_lib]]
-name = "PyVerif"
+name = "Pontifex"
 
 [[lean_exe]]
-name = "pyverif"
+name = "pontifex"
 root = "Main"

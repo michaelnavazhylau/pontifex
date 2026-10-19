@@ -4,7 +4,7 @@ Three implementations of the same function are compared:
 
 * the original Python function (executed),
 * the reference interpreter over the translated IR (exact and binary64),
-* the Lean reference semantics, through ``lake exe pyverif``.
+* the Lean reference semantics, through ``lake exe pontifex``.
 
 Hypothesis drives the source-vs-IR comparison; the Lean oracle is exercised in
 batched calls because each call is a subprocess.
@@ -20,14 +20,14 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from pyverif.interp import (
+from pontifex.interp import (
     InterpreterError,
     float_bits,
     run_exact,
     run_float,
     to_option,
 )
-from pyverif.pipeline import compile_file, run_lean, run_python_source
+from pontifex.pipeline import compile_file, run_lean, run_python_source
 
 from conftest import BRANCHING, EXAMPLES, LOOPING, STRAIGHT_LINE, example_source, translate_example
 

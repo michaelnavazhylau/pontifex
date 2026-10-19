@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from test_certificates import check_lean
 
-PRELUDE = """import PyVerif.Core.FloatSpec
-import PyVerif.Audit.Command
-open PyVerif
+PRELUDE = """import Pontifex.Core.FloatSpec
+import Pontifex.Audit.Command
+open Pontifex
 """
 
 
@@ -53,9 +53,9 @@ example : (Binary64.abs (Binary64.ofBits 0x8000000000000000)).bits = 0 := rfl
 
 def test_two_tier_specs_are_axiom_clean(tmp_path):
     result = _run(tmp_path, """
-#audit_axioms PyVerif.FloatSpec.add_value PyVerif.FloatSpec.add_bits
-#audit_axioms PyVerif.FloatSpec.sub_value PyVerif.FloatSpec.mul_value
-#audit_axioms PyVerif.FloatSpec.div_value PyVerif.FloatSpec.pow_spec
-#audit_axioms PyVerif.Binary64.neg_bits PyVerif.Binary64.abs_bits
+#audit_axioms Pontifex.FloatSpec.add_value Pontifex.FloatSpec.add_bits
+#audit_axioms Pontifex.FloatSpec.sub_value Pontifex.FloatSpec.mul_value
+#audit_axioms Pontifex.FloatSpec.div_value Pontifex.FloatSpec.pow_spec
+#audit_axioms Pontifex.Binary64.neg_bits Pontifex.Binary64.abs_bits
 """)
     assert result.returncode == 0, result.stdout + result.stderr

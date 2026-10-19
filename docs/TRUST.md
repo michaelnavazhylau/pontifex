@@ -133,7 +133,7 @@ those are finite build-time tests, not universal correctness certificates.
 | Rational division success iff divisor nonzero | Proved |
 | Raw binary64 representation round-trip | Proved by rfl |
 | Two-tier Float bit/value component specs | Proved by rfl (`FloatSpec`) |
-| `pyverif_step`-proved component specs | Proved and audited (`Examples/StepDemo`) |
+| `pontifex_step`-proved component specs | Proved and audited (`Examples/StepDemo`) |
 | Native Float/CPython arithmetic agreement | Tested at IEEE edges and random bits, not proved |
 | Python source↔IR equivalence | Tested only; still unproved |
 | Physics step/spec links and clamping spec | Proved for the modeled algorithms |

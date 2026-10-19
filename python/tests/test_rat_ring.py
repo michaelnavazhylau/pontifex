@@ -4,9 +4,9 @@ from __future__ import annotations
 from conftest import ROOT
 from test_certificates import check_lean
 
-PRELUDE = """import PyVerif.Core.PolyTactic
-import PyVerif.Spec.FreeFall
-import PyVerif.Audit.Command
+PRELUDE = """import Pontifex.Core.PolyTactic
+import Pontifex.Spec.FreeFall
+import Pontifex.Audit.Command
 """
 
 
@@ -45,17 +45,17 @@ def test_rejects_non_rat_goals(tmp_path):
 def test_harmonic_invariant_and_nstep_formula_are_kernel_checked(tmp_path):
     result = _run(tmp_path, """
 example (w2 dt x v : Rat) :
-    PyVerif.Spec.modifiedEnergy w2 dt (PyVerif.Spec.symplecticStep w2 dt ⟨x, v⟩) =
-      PyVerif.Spec.modifiedEnergy w2 dt ⟨x, v⟩ :=
-  PyVerif.Spec.symplecticStep_modifiedEnergy w2 dt x v
+    Pontifex.Spec.modifiedEnergy w2 dt (Pontifex.Spec.symplecticStep w2 dt ⟨x, v⟩) =
+      Pontifex.Spec.modifiedEnergy w2 dt ⟨x, v⟩ :=
+  Pontifex.Spec.symplecticStep_modifiedEnergy w2 dt x v
 example (n : Nat) (a dt x v : Rat) :
-    2 * (PyVerif.Spec.repeatStep n a dt ⟨x, v⟩).x =
+    2 * (Pontifex.Spec.repeatStep n a dt ⟨x, v⟩).x =
       2*x + 2*(n:Rat)*v*dt + a*dt*dt*(n:Rat)*((n:Rat)+1) :=
-  PyVerif.Spec.repeatStep_position_twice n a dt x v
-#audit_axioms PyVerif.Spec.symplecticStep_modifiedEnergy
-#audit_axioms PyVerif.Spec.repeatStep_position_twice
-#audit_axioms PyVerif.Spec.repeatStep_velocity
-#audit_axioms PyVerif.Poly.eval_normalize
+  Pontifex.Spec.repeatStep_position_twice n a dt x v
+#audit_axioms Pontifex.Spec.symplecticStep_modifiedEnergy
+#audit_axioms Pontifex.Spec.repeatStep_position_twice
+#audit_axioms Pontifex.Spec.repeatStep_velocity
+#audit_axioms Pontifex.Poly.eval_normalize
 """)
     assert result.returncode == 0, result.stdout + result.stderr
 

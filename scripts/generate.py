@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate the checked-in Lean translations of ``examples/*.py``.
 
-    python scripts/generate.py            # write PyVerif/Generated/*.lean
+    python scripts/generate.py            # write Pontifex/Generated/*.lean
     python scripts/generate.py --check    # fail if the files are stale
 
 Every generated module contains:
@@ -28,11 +28,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "python"))
 
-from pyverif.emit import emit_module, needs_checked_backend  # noqa: E402
-from pyverif.version import IR_VERSION  # noqa: E402
-from pyverif.frontend import translate  # noqa: E402
-from pyverif.interp import Returned, run_exact  # noqa: E402
-from pyverif.pipeline import default_namespace, default_samples  # noqa: E402
+from pontifex.emit import emit_module, needs_checked_backend  # noqa: E402
+from pontifex.version import IR_VERSION  # noqa: E402
+from pontifex.frontend import translate  # noqa: E402
+from pontifex.interp import Returned, run_exact  # noqa: E402
+from pontifex.pipeline import default_namespace, default_samples  # noqa: E402
 
 EXAMPLES = [
     "free_fall",
@@ -48,7 +48,7 @@ def check_schema_alignment(
     config_path: Path | None = None, expected: int | None = None
 ) -> None:
     """Fail early when the Python and Lean schema versions diverge."""
-    config_path = config_path or (ROOT / "PyVerif" / "Core" / "Config.lean")
+    config_path = config_path or (ROOT / "Pontifex" / "Core" / "Config.lean")
     expected = IR_VERSION if expected is None else expected
     config = config_path.read_text()
     marker = "def irSchemaVersion : Nat :="
@@ -58,7 +58,7 @@ def check_schema_alignment(
     lean_version = int(tail.split()[0])
     if lean_version != expected:
         raise SystemExit(
-            f"schema version mismatch: python/pyverif/version.py has IR_VERSION={expected}, "
+            f"schema version mismatch: python/pontifex/version.py has IR_VERSION={expected}, "
             f"{config_path} has irSchemaVersion={lean_version}"
         )
 
@@ -84,42 +84,42 @@ def generate_one(stem: str) -> tuple[str, str]:
 
 
 AUDIT_EXAMPLES = [
-    "PyVerif.Examples.freeFall_matches_spec",
-    "PyVerif.Examples.harmonicOscillator_matches_spec",
-    "PyVerif.Examples.freeFall_ir_matches_spec",
-    "PyVerif.Examples.clampedStep_matches_spec",
-    "PyVerif.Examples.freeFallLoop_float_link",
-    "PyVerif.Examples.freeFallLoop_zero_budget",
-    "PyVerif.Binary64.bits_roundtrip",
-    "PyVerif.exec_mono",
-    "PyVerif.exec_completed_stable",
-    "PyVerif.total_to_partial",
-    "PyVerif.Outcome.refines_trans",
-    "PyVerif.Outcome.refines_antisymm",
-    "PyVerif.Examples.rat_div_success_iff",
-    "PyVerif.Examples.rat_div_failed_iff",
-    "PyVerif.Examples.freeFallLoop_compiled_mono",
-    "PyVerif.Examples.freeFallLoop_zero_time_total",
-    "PyVerif.Examples.freeFallLoop_zero_time_partial",
-    "PyVerif.Spec.symplecticStep_modifiedEnergy",
-    "PyVerif.Spec.repeatStep_velocity",
-    "PyVerif.Spec.repeatStep_position_twice",
-    "PyVerif.Spec.ratNatCast_add",
-    "PyVerif.Spec.ratNatCast_mul",
-    "PyVerif.Spec.ratNatCast_succ",
-    "PyVerif.Poly.eval_normalize",
-    "PyVerif.Poly.eval_insertTerm",
-    "PyVerif.Poly.eval_foldr_mul",
-    "PyVerif.Examples.freeFall_step_position",
-    "PyVerif.Examples.freeFall_step_velocity",
-    "PyVerif.Examples.harmonicOscillator_step_velocity",
-    "PyVerif.FloatSpec.add_value",
-    "PyVerif.FloatSpec.add_bits",
-    "PyVerif.FloatSpec.mul_value",
-    "PyVerif.FloatSpec.div_value",
-    "PyVerif.FloatSpec.sub_bits",
-    "PyVerif.Binary64.neg_bits",
-    "PyVerif.Binary64.abs_bits",
+    "Pontifex.Examples.freeFall_matches_spec",
+    "Pontifex.Examples.harmonicOscillator_matches_spec",
+    "Pontifex.Examples.freeFall_ir_matches_spec",
+    "Pontifex.Examples.clampedStep_matches_spec",
+    "Pontifex.Examples.freeFallLoop_float_link",
+    "Pontifex.Examples.freeFallLoop_zero_budget",
+    "Pontifex.Binary64.bits_roundtrip",
+    "Pontifex.exec_mono",
+    "Pontifex.exec_completed_stable",
+    "Pontifex.total_to_partial",
+    "Pontifex.Outcome.refines_trans",
+    "Pontifex.Outcome.refines_antisymm",
+    "Pontifex.Examples.rat_div_success_iff",
+    "Pontifex.Examples.rat_div_failed_iff",
+    "Pontifex.Examples.freeFallLoop_compiled_mono",
+    "Pontifex.Examples.freeFallLoop_zero_time_total",
+    "Pontifex.Examples.freeFallLoop_zero_time_partial",
+    "Pontifex.Spec.symplecticStep_modifiedEnergy",
+    "Pontifex.Spec.repeatStep_velocity",
+    "Pontifex.Spec.repeatStep_position_twice",
+    "Pontifex.Spec.ratNatCast_add",
+    "Pontifex.Spec.ratNatCast_mul",
+    "Pontifex.Spec.ratNatCast_succ",
+    "Pontifex.Poly.eval_normalize",
+    "Pontifex.Poly.eval_insertTerm",
+    "Pontifex.Poly.eval_foldr_mul",
+    "Pontifex.Examples.freeFall_step_position",
+    "Pontifex.Examples.freeFall_step_velocity",
+    "Pontifex.Examples.harmonicOscillator_step_velocity",
+    "Pontifex.FloatSpec.add_value",
+    "Pontifex.FloatSpec.add_bits",
+    "Pontifex.FloatSpec.mul_value",
+    "Pontifex.FloatSpec.div_value",
+    "Pontifex.FloatSpec.sub_bits",
+    "Pontifex.Binary64.neg_bits",
+    "Pontifex.Binary64.abs_bits",
 ]
 
 
@@ -140,11 +140,11 @@ def audit_content() -> str:
         "/- Generated by scripts/generate.py: kernel axiom audit of every certificate.",
         "   DO NOT EDIT. `#audit_axioms` rejects sorryAx, native_decide trust hooks,",
         "   and project-specific axioms. -/",
-        "import PyVerif.Generated",
-        "import PyVerif.Examples.SpecLinks",
-        "import PyVerif.Examples.ControlFlow",
-        "import PyVerif.Examples.FailuresAndRefinement",
-        "import PyVerif.Audit.Command",
+        "import Pontifex.Generated",
+        "import Pontifex.Examples.SpecLinks",
+        "import Pontifex.Examples.ControlFlow",
+        "import Pontifex.Examples.FailuresAndRefinement",
+        "import Pontifex.Audit.Command",
         "",
     ]
     lines.extend(f"#audit_axioms {name}" for name in names)
@@ -161,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     for stem in EXAMPLES:
         lean, ir_json = generate_one(stem)
         namespace = default_namespace(stem)
-        lean_path = ROOT / "PyVerif" / "Generated" / f"{namespace.split('.')[-1]}.lean"
+        lean_path = ROOT / "Pontifex" / "Generated" / f"{namespace.split('.')[-1]}.lean"
         ir_path = ROOT / "build" / "ir" / f"{stem}.json"
         lean_path.parent.mkdir(parents=True, exist_ok=True)
         ir_path.parent.mkdir(parents=True, exist_ok=True)
@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
         ir_path.write_text(ir_json)
         print(f"wrote {lean_path.relative_to(ROOT)} and {ir_path.relative_to(ROOT)}")
 
-    audit_path = ROOT / "PyVerif" / "Audit.lean"
+    audit_path = ROOT / "Pontifex" / "Audit.lean"
     audit = audit_content()
     if args.check:
         if not audit_path.exists() or audit_path.read_text() != audit:
@@ -184,9 +184,9 @@ def main(argv: list[str] | None = None) -> int:
         audit_path.write_text(audit)
         print(f"wrote {audit_path.relative_to(ROOT)}")
 
-    umbrella = ROOT / "PyVerif" / "Generated.lean"
+    umbrella = ROOT / "Pontifex" / "Generated.lean"
     imports = "\n".join(
-        f"import PyVerif.Generated.{default_namespace(stem).split('.')[-1]}" for stem in EXAMPLES
+        f"import Pontifex.Generated.{default_namespace(stem).split('.')[-1]}" for stem in EXAMPLES
     )
     content = (
         "/- Umbrella module for the checked-in generated translations.\n"

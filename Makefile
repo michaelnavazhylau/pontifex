@@ -1,4 +1,4 @@
-# pyverif — Python -> SSA IR -> Lean 4 verification bridge
+# pontifex — Python -> SSA IR -> Lean 4 verification bridge
 
 PY ?= python3
 LAKE ?= lake
@@ -19,7 +19,7 @@ gen:
 float-boundaries: lean
 	uv run python scripts/check_float_boundaries.py
 
-## Differential corpus (requires `lake build pyverif`)
+## Differential corpus (requires `lake build pontifex`)
 corpus:
 	$(PY) scripts/run_corpus.py --samples 32
 

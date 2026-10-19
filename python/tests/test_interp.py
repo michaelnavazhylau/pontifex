@@ -6,8 +6,8 @@ from fractions import Fraction
 
 import pytest
 
-from pyverif.errors import InterpreterError
-from pyverif.interp import (
+from pontifex.errors import InterpreterError
+from pontifex.interp import (
     FellThrough,
     Failed,
     OutOfFuel,
@@ -18,7 +18,7 @@ from pyverif.interp import (
     run_float,
     to_option,
 )
-from pyverif.pipeline import run_python_source
+from pontifex.pipeline import run_python_source
 
 from conftest import example_source, translate_example
 
@@ -75,7 +75,7 @@ def test_clamped_branch_merge():
 
 
 def test_division_by_zero_is_an_observable_failure():
-    from pyverif.frontend import translate
+    from pontifex.frontend import translate
 
     fn = translate("def f(x: float, y: float):\n    return x / y\n", filename="div.py").fn
     assert run_exact(fn, [Fraction(1), Fraction(0)]) == Failed("divisionByZero")

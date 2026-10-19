@@ -6,10 +6,10 @@ from fractions import Fraction
 
 import pytest
 
-from pyverif.frontend import translate
-from pyverif.interp import Failed, Stuck, OutOfFuel, Returned, run_exact, run_float
-from pyverif.ir import Fn, Ret, Slot, Ite, Seq, Where, Phi, Assign, Lit
-from pyverif.pipeline import compare_outcomes, run_lean, compile_source
+from pontifex.frontend import translate
+from pontifex.interp import Failed, Stuck, OutOfFuel, Returned, run_exact, run_float
+from pontifex.ir import Fn, Ret, Slot, Ite, Seq, Where, Phi, Assign, Lit
+from pontifex.pipeline import compare_outcomes, run_lean, compile_source
 from test_certificates import check_lean
 
 CASES = [
@@ -79,14 +79,14 @@ def test_float_failures_and_evaluation_order(lean_exe):
 
 def test_failure_is_not_bottom_and_refinement_is_kernel_checked(tmp_path):
     source = """
-import PyVerif.Core.Refinement
-import PyVerif.Audit.Command
-open PyVerif
+import Pontifex.Core.Refinement
+import Pontifex.Audit.Command
+open Pontifex
 example : ¬Outcome.Refines (.failed .divisionByZero : Outcome Rat) (.returned []) := by
   intro h; rcases h with h | h <;> cases h
 example : ¬Outcome.Refines (.stuck : Outcome Rat) (.returned []) := by
   intro h; rcases h with h | h <;> cases h
-#audit_axioms PyVerif.exec_mono PyVerif.exec_completed_stable PyVerif.total_to_partial
+#audit_axioms Pontifex.exec_mono Pontifex.exec_completed_stable Pontifex.total_to_partial
 """
     result = check_lean(tmp_path, source)
     assert result.returncode == 0, result.stdout + result.stderr

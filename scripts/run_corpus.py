@@ -6,7 +6,7 @@ three implementations on deterministic sampled inputs:
 
 * the original Python function (CPython),
 * the reference interpreter over the emitted IR (exact and binary64),
-* the Lean reference semantics through ``lake exe pyverif``.
+* the Lean reference semantics through ``lake exe pontifex``.
 
 Exact runs use ``Fraction``; float runs compare IEEE-754 bit patterns.  A known
 boundary mismatch must be explicitly allowlisted in ``corpus/allowlist.json``
@@ -29,13 +29,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "python"))
 
-from pyverif.errors import InterpreterError, PyVerifError  # noqa: E402
-from pyverif.interp import (  # noqa: E402
+from pontifex.errors import InterpreterError, PontifexError  # noqa: E402
+from pontifex.interp import (  # noqa: E402
     run_exact,
     run_float,
     to_option,
 )
-from pyverif.pipeline import (  # noqa: E402
+from pontifex.pipeline import (  # noqa: E402
     compile_file,
     compare_outcomes,
     find_lean_exe,
@@ -189,11 +189,11 @@ def main(argv: list[str] | None = None) -> int:
 
     exe = args.exe or find_lean_exe(ROOT)
     if exe is None or not Path(exe).exists():
-        print("error: Lean runner not built (run `lake build pyverif`)", file=sys.stderr)
+        print("error: Lean runner not built (run `lake build pontifex`)", file=sys.stderr)
         return 2
     try:
         stats = run(args.samples, Path(exe), args.verbose)
-    except (InterpreterError, PyVerifError) as exc:
+    except (InterpreterError, PontifexError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 0 if not stats.failures else 1

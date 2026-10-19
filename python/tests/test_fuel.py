@@ -3,9 +3,9 @@ from fractions import Fraction
 
 import pytest
 
-from pyverif.frontend import translate
-from pyverif.interp import OutOfFuel, Returned, run_exact, run_float
-from pyverif.pipeline import compare_outcomes, run_lean
+from pontifex.frontend import translate
+from pontifex.interp import OutOfFuel, Returned, run_exact, run_float
+from pontifex.pipeline import compare_outcomes, run_lean
 
 PROGRAMS = [
     ("def f(x):\n    return x\n", [1]),
@@ -48,7 +48,7 @@ def test_fuel_boundaries_are_observable():
 
 
 def test_cli_eval_honors_budget(tmp_path, capsys):
-    from pyverif.cli import main
+    from pontifex.cli import main
 
     path = tmp_path / "loop.py"
     path.write_text("def f(x):\n    while x < 2:\n        x = x + 1\n    return x\n")
@@ -59,7 +59,7 @@ def test_cli_eval_honors_budget(tmp_path, capsys):
 
 
 def test_sample_generation_uses_requested_budget(tmp_path):
-    from pyverif.cli import main
+    from pontifex.cli import main
 
     source = tmp_path / "branch.py"
     source.write_text("def f(x):\n    if x < 0:\n        x = -x\n    return x\n")

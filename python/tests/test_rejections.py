@@ -6,8 +6,8 @@ import sys
 
 import pytest
 
-from pyverif.errors import FrontendError
-from pyverif.frontend import translate
+from pontifex.errors import FrontendError
+from pontifex.frontend import translate
 
 from conftest import ROOT
 

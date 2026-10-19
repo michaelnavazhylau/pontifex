@@ -6,9 +6,9 @@ import textwrap
 
 import pytest
 
-from pyverif.errors import FrontendError, UnsupportedError
-from pyverif.frontend import translate
-from pyverif.ir import (
+from pontifex.errors import FrontendError, UnsupportedError
+from pontifex.frontend import translate
+from pontifex.ir import (
     And,
     Assign,
     Bin,

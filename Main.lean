@@ -1,9 +1,9 @@
-import PyVerif.Json
+import Pontifex.Json
 
-open PyVerif
+open Pontifex
 
 def usage : IO UInt32 := do
-  IO.eprintln "usage: pyverif (rat|float) <ir.json> <inputs.json> [fuel]"
+  IO.eprintln "usage: pontifex (rat|float) <ir.json> <inputs.json> [fuel]"
   return 2
 
 /-- Rat inputs use n/d; Float inputs use 0x + up to 16 hexadecimal bits.

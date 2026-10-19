@@ -5,7 +5,7 @@ runner compiles it once and compares, on deterministic sampled inputs:
 
 1. CPython execution of the source,
 2. the exact / binary64 reference interpreters over the emitted IR, and
-3. the Lean reference semantics via `lake exe pyverif`.
+3. the Lean reference semantics via `lake exe pontifex`.
 
 Exact runs use `Fraction`; binary64 runs compare bit patterns.
 

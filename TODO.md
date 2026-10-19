@@ -1,10 +1,10 @@
 # TODO — implementation roadmap
 
-> GitHub tracking: epic [#15](https://github.com/michaelnavazhylau/pyverif/issues/15);
-> P3 issues [#1–#6](https://github.com/michaelnavazhylau/pyverif/milestone/1);
-> P4 issues [#7–#14](https://github.com/michaelnavazhylau/pyverif/milestone/2);
-> tooling issue [#16](https://github.com/michaelnavazhylau/pyverif/issues/16)
-> ([milestone #3](https://github.com/michaelnavazhylau/pyverif/milestone/3)).
+> GitHub tracking: epic [#15](https://github.com/michaelnavazhylau/pontifex/issues/15);
+> P3 issues [#1–#6](https://github.com/michaelnavazhylau/pontifex/milestone/1);
+> P4 issues [#7–#14](https://github.com/michaelnavazhylau/pontifex/milestone/2);
+> tooling issue [#16](https://github.com/michaelnavazhylau/pontifex/issues/16)
+> ([milestone #3](https://github.com/michaelnavazhylau/pontifex/milestone/3)).
 
 Ordered by value per unit of risk, derived from the current trust report
 (`docs/TRUST.md`) and the Charon/Aeneas review (`docs/RELATED_WORK.md`).
@@ -38,8 +38,8 @@ policy, future float mode, certificate mode). Charon solves this by embedding
 **Scope.**
 
 - add `irVersion`, `fuelPolicy`, and `numericMode` constants to the Python IR
-  module and to `PyVerif/Core/IR.lean`;
-- emit `def pyverifConfig : PyVerif.Config := …` in every generated module;
+  module and to `Pontifex/Core/IR.lean`;
+- emit `def pontifexConfig : Pontifex.Config := …` in every generated module;
 - `#guard` the invariants the file depends on (e.g. `irVersion = 3`,
   `fuelPolicy = .structured`);
 - extend `--check` so a stale version is a build failure.
@@ -54,12 +54,12 @@ future tactic cannot sneak `native_decide` into a linkage proof.
 
 **Scope.**
 
-- a generated `PyVerif/Audit.lean` that `#print axioms` every
+- a generated `Pontifex/Audit.lean` that `#print axioms` every
   `<fn>_lowering`, `<fn>_link`, and `<fn>_compiled_link` (the generator knows
   the names);
 - a pytest gate that fails if the printed axiom set is not a subset of
   `{propext, Classical.choice, Quot.sound}`;
-- a scan that rejects `sorry`/`axiom` anywhere under `PyVerif/Generated/`.
+- a scan that rejects `sorry`/`axiom` anywhere under `Pontifex/Generated/`.
 
 **Acceptance.** Deliberately inserting `by native_decide` into a generated
 linkage theorem fails the gate with the theorem name.
@@ -205,7 +205,7 @@ and `repeatStep_position_twice` is proved; both with no new axioms and covered b
 the build-time audit. Corruption tests reject false identities and rational
 literal coefficients (clear denominators first).
 
-### ✅ T9. Spec database and `pyverif_step` tactic — **M**, low risk
+### ✅ T9. Spec database and `pontifex_step` tactic — **M**, low risk
 
 **Why.** Aeneas's usability comes from ~180 `@[step]` lemmas and `step*?`.
 Our spec links are hand-written against generated definitions.
@@ -214,15 +214,15 @@ Our spec links are hand-written against generated definitions.
 
 - one registered lemma per IR operator and statement form (`evalE_add`,
   `evalE_mul`, `assign_sem`, `ite_sem`, …);
-- a `pyverif_step` tactic that unfolds a translated function to arithmetic and
+- a `pontifex_step` tactic that unfolds a translated function to arithmetic and
   discharges side conditions with `assumption`/`simp`/`omega` as configured;
-- a `pyverif_step*?` script printer;
-- rewrite `PyVerif/Examples/SpecLinks.lean` to use the tactic as the
+- a `pontifex_step*?` script printer;
+- rewrite `Pontifex/Examples/SpecLinks.lean` to use the tactic as the
   acceptance test;
 - document when to use the tactic vs `rfl` linkage.
 
-**Acceptance.** ✅ `pyverif_step` has an explicit rule list, a trace variant,
-and worked component specs in `PyVerif/Examples/StepDemo.lean`; proofs no longer
+**Acceptance.** ✅ `pontifex_step` has an explicit rule list, a trace variant,
+and worked component specs in `Pontifex/Examples/StepDemo.lean`; proofs no longer
 unfold `exec` by hand. Deeply nested loops still need invariants/fuel induction.
 
 ### ✅ T10. Two-tier arithmetic lemmas for Float — **L**, high risk

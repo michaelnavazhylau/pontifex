@@ -6,29 +6,29 @@ import subprocess
 
 import pytest
 
-from pyverif.frontend import translate
-from pyverif.ir import fn_of_json
-from pyverif.pipeline import compile_file
-from pyverif.version import IR_VERSION
+from pontifex.frontend import translate
+from pontifex.ir import fn_of_json
+from pontifex.pipeline import compile_file
+from pontifex.version import IR_VERSION
 
 from conftest import EXAMPLES, ROOT
 
 
 def _generated_example() -> str:
-    return (ROOT / "PyVerif" / "Generated" / "FreeFallLoop.lean").read_text()
+    return (ROOT / "Pontifex" / "Generated" / "FreeFallLoop.lean").read_text()
 
 
 def test_generated_artifacts_stamp_configuration():
     text = _generated_example()
-    assert "def pyverifConfig : Config :=" in text
+    assert "def pontifexConfig : Config :=" in text
     assert f"irVersion := {IR_VERSION}" in text
     assert "fuelPolicy := .allFuel" in text
     assert "numericMode := .exactRat" in text
-    assert "#guard pyverifConfig.schemaMatches" in text
+    assert "#guard pontifexConfig.schemaMatches" in text
 
 
 def test_straight_line_artifacts_declare_literal_fuel():
-    text = (ROOT / "PyVerif" / "Generated" / "FreeFall.lean").read_text()
+    text = (ROOT / "Pontifex" / "Generated" / "FreeFall.lean").read_text()
     assert "fuelPolicy := .literal" in text
 
 
@@ -88,7 +88,7 @@ def test_lean_runner_rejects_stale_ir_json(tmp_path, lean_exe):
 def test_generate_refuses_to_run_on_schema_drift(tmp_path):
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("pyverif_generate", ROOT / "scripts" / "generate.py")
+    spec = importlib.util.spec_from_file_location("pontifex_generate", ROOT / "scripts" / "generate.py")
     generate = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(generate)
     config = tmp_path / "Config.lean"

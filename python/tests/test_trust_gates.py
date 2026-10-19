@@ -6,8 +6,8 @@ import subprocess
 
 from conftest import ROOT
 
-GENERATED_DIR = ROOT / "PyVerif" / "Generated"
-AUDIT_FILE = ROOT / "PyVerif" / "Audit.lean"
+GENERATED_DIR = ROOT / "Pontifex" / "Generated"
+AUDIT_FILE = ROOT / "Pontifex" / "Audit.lean"
 
 
 def _generated_modules():
@@ -44,7 +44,7 @@ def _run_lean(tmp_path, text: str):
 def test_axiom_audit_accepts_kernel_proofs(tmp_path):
     result = _run_lean(
         tmp_path,
-        "import PyVerif.Audit.Command\n"
+        "import Pontifex.Audit.Command\n"
         "theorem good : (1 : Nat) + 1 = 2 := rfl\n"
         "#audit_axioms good\n",
     )
@@ -54,7 +54,7 @@ def test_axiom_audit_accepts_kernel_proofs(tmp_path):
 def test_axiom_audit_rejects_native_decide(tmp_path):
     result = _run_lean(
         tmp_path,
-        "import PyVerif.Audit.Command\n"
+        "import Pontifex.Audit.Command\n"
         "theorem cheat : (1 : Nat) + 1 = 2 := by native_decide\n"
         "#audit_axioms cheat\n",
     )
@@ -67,7 +67,7 @@ def test_axiom_audit_rejects_native_decide(tmp_path):
 def test_axiom_audit_rejects_sorry(tmp_path):
     result = _run_lean(
         tmp_path,
-        "import PyVerif.Audit.Command\n"
+        "import Pontifex.Audit.Command\n"
         "theorem hole : (1 : Nat) + 1 = 2 := by sorry\n"
         "#audit_axioms hole\n",
     )
@@ -79,7 +79,7 @@ def test_audit_manifest_covers_every_generated_certificate():
     audited = set(re.findall(r"#audit_axioms\s+(\S+)", AUDIT_FILE.read_text()))
     missing: list[str] = []
     for path in _generated_modules():
-        namespace = f"PyVerif.Generated.{path.stem}"
+        namespace = f"Pontifex.Generated.{path.stem}"
         text = path.read_text()
         for fn in re.findall(r"def\s+(\w+)IR\s*:\s*Fn", text):
             for suffix in ("_lowering", "_link"):

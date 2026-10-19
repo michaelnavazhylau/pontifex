@@ -10,10 +10,10 @@ import sys
 
 import pytest
 
-from pyverif.frontend import translate
-from pyverif.interp import Returned, Failed, FellThrough, float_bits, run_float
-from pyverif.ir import Fn, Assign, Lit
-from pyverif.pipeline import compare_outcomes, run_lean, compile_source, observe_python, load_python_function
+from pontifex.frontend import translate
+from pontifex.interp import Returned, Failed, FellThrough, float_bits, run_float
+from pontifex.ir import Fn, Assign, Lit
+from pontifex.pipeline import compare_outcomes, run_lean, compile_source, observe_python, load_python_function
 from conftest import ROOT
 from test_certificates import check_lean
 
@@ -93,7 +93,7 @@ def test_sparse_fallthrough_preserves_slots_and_signed_zero(lean_exe):
 
 
 def test_bit_transport_theorem_is_audited(tmp_path):
-    text = "import PyVerif.Core.Binary64\nimport PyVerif.Audit.Command\n#audit_axioms PyVerif.Binary64.bits_roundtrip\n"
+    text = "import Pontifex.Core.Binary64\nimport Pontifex.Audit.Command\n#audit_axioms Pontifex.Binary64.bits_roundtrip\n"
     result = check_lean(tmp_path, text)
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -109,7 +109,7 @@ def test_float_boundary_corpus_smoke():
 
 
 def test_nonfinite_source_literal_is_explicitly_rejected():
-    from pyverif.errors import FrontendError
+    from pontifex.errors import FrontendError
     with pytest.raises(FrontendError, match="non-finite float literals"):
         translate("def f():\n    return 1e999\n")
 
@@ -129,7 +129,7 @@ def test_nan_exemption_cannot_hide_finite_zero_or_transport_mismatches():
 
 
 def test_cli_float_does_not_erase_negative_zero(tmp_path, capsys):
-    from pyverif.cli import main
+    from pontifex.cli import main
     path = tmp_path / "identity.py"
     path.write_text("def f(x):\n    return x\n")
     assert main(["eval", str(path), "--float", "--args=-0.0"]) == 0

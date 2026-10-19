@@ -1,16 +1,16 @@
-# `pyverif_step`: proving properties of translated programs
+# `pontifex_step`: proving properties of translated programs
 
-`PyVerif/Step.lean` provides a small, reviewable proof driver for generated
+`Pontifex/Step.lean` provides a small, reviewable proof driver for generated
 definitions. It does not add assumptions: every successful run is a
 kernel-checked proof.
 
 ```lean
-import PyVerif.Step
-import PyVerif.Generated.FreeFall
+import Pontifex.Step
+import Pontifex.Generated.FreeFall
 
 example (x v a dt : Rat) :
     (Generated.FreeFall.step 64 x v a dt).map Prod.snd = some (v + a * dt) := by
-  pyverif_step [Generated.FreeFall.step]
+  pontifex_step [Generated.FreeFall.step]
 ```
 
 ## What it does
@@ -24,14 +24,14 @@ example (x v a dt : Rat) :
    `decide`.
 
 The named evaluation rules (`fromEval_ok`, `fromEval_failed`,
-`bindEnv_fellThrough`, …) live in `PyVerif/Step.lean`. There is no custom simp
+`bindEnv_fellThrough`, …) live in `Pontifex/Step.lean`. There is no custom simp
 extension in core Lean; extending the tactic means adding lemmas to that file
 and the explicit list in the macro.
 
 ## Diagnostics
 
-* `pyverif_step? [defs]` prints the simplified state and then tries to finish.
-* `pyverif_step*? [defs]` adds a hint about the finishing tactics.
+* `pontifex_step? [defs]` prints the simplified state and then tries to finish.
+* `pontifex_step*? [defs]` adds a hint about the finishing tactics.
 
 Remaining goals are reported normally; these variants never silently admit a
 goal.
@@ -49,6 +49,6 @@ goal.
 
 ## Worked proofs
 
-`PyVerif/Examples/StepDemo.lean` proves the position and velocity components of
+`Pontifex/Examples/StepDemo.lean` proves the position and velocity components of
 the free-fall and harmonic-oscillator steps with one tactic line each. These
 theorems are included in the build-time axiom audit.

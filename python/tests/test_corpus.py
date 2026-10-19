@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from pyverif.pipeline import compile_file
+from pontifex.pipeline import compile_file
 
 from conftest import ROOT
 

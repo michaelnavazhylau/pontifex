@@ -7,8 +7,8 @@ import sys
 
 import pytest
 
-from pyverif.emit import option_type, rat_literal, tuple_type
-from pyverif.pipeline import compile_file
+from pontifex.emit import option_type, rat_literal, tuple_type
+from pontifex.pipeline import compile_file
 
 from conftest import EXAMPLES, ROOT
 
@@ -36,7 +36,7 @@ def test_straight_line_link_is_emitted():
     assert "def step (_fuel : Nat)" in text
     assert "theorem step_link" in text
     assert ":=\n  rfl" in text
-    assert "namespace PyVerif.Generated.FreeFall" in text
+    assert "namespace Pontifex.Generated.FreeFall" in text
 
 
 def test_control_flow_emits_all_fuel_certificates():

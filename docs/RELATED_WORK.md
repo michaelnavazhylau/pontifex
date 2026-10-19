@@ -183,9 +183,9 @@ A small registered rule set (one lemma per IR operator and statement form) plus
 a script printer would make downstream proofs about translated Python routines
 substantially easier.
 
-## Where pyverif stands relative to them
+## Where pontifex stands relative to them
 
-| Dimension | Charon + Aeneas | pyverif |
+| Dimension | Charon + Aeneas | pontifex |
 | --- | --- | --- |
 | Translation trust | trusted translator; CI + invariants | **per-program kernel certificate** for lowering and codegen (small language) |
 | Loop semantics | CFG authority; fixed-point abstraction; `partial_fixpoint`; total/partial WP | structured IR; fuel; kernel-reducible; full outcomes |
@@ -212,7 +212,7 @@ readings on top. This is the cheapest transfer of Aeneas's `DWP`/`DWLP` idea and
 removes per-proof fuel plumbing. It also gives a principled home for exceptions
 and undefined behaviour when we add them, instead of widening `Option`.
 
-**First step:** `PyVerif/Core/OutcomeOrder.lean` with `Refines`, monotonicity for
+**First step:** `Pontifex/Core/OutcomeOrder.lean` with `Refines`, monotonicity for
 `exec`, and tests instantiating it on the loop example.
 
 ### 2. Add an exceptional/undefined outcome before adding features
@@ -229,12 +229,12 @@ the Python interpreter, with division-by-zero as the first error kind.
 
 ### 3. Stamp and assert the artifact configuration — ✅ P0/T1
 
-Emit a `def pyverifConfig : Config := { irVersion := …, fuelPolicy := … }` in
+Emit a `def pontifexConfig : Config := { irVersion := …, fuelPolicy := … }` in
 each generated module and `#guard` the invariants the proof depends on. Extend
 `scripts/generate.py --check` to include a schema version. This directly copies
 Charon's version/options-in-artifact discipline and prevents silent weakening.
 
-**First step:** a version constant in `pyverif/ir.py` and `PyVerif/Core/IR.lean`,
+**First step:** a version constant in `pontifex/ir.py` and `Pontifex/Core/IR.lean`,
 plus a `#guard` in generated files.
 
 ### 4. Make the canonical IR unstructured (or at least support multiple exits)
@@ -257,12 +257,12 @@ the opaque level, and assert in the certificate that the verified path contains
 no opaque node. This mirrors Charon's fidelity levels and Aeneas's
 `is_opaque`/template workflow, and is the path from scalar kernels to real code.
 
-**First step:** a `#pyverif.opaque` source comment/attribute convention and a
+**First step:** a `#pontifex.opaque` source comment/attribute convention and a
 metadata block in the JSON.
 
 ### 6. Build a registered spec database and a step tactic
 
-Provide `@[pyverif_step]` lemmas for expressions/statements and a `pyverif_step`
+Provide `@[pontifex_step]` lemmas for expressions/statements and a `pontifex_step`
 tactic that unfolds a translated function into its arithmetic, plus a script
 printer. This is the main usability gap relative to Aeneas: our specs are
 currently written by hand against generated definitions.

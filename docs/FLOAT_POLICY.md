@@ -28,7 +28,7 @@ with CPython's native arithmetic is **tested**, not a compiler/hardware proof.
 ## Two-tier representation and proved component specs
 
 `Binary64` stores a raw `bits : UInt64` tier and a native `value : Float` tier.
-`PyVerif/Core/FloatSpec.lean` proves, for every arithmetic operation, both
+`Pontifex/Core/FloatSpec.lean` proves, for every arithmetic operation, both
 faces of the result:
 
 ```lean

@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import textwrap
 
-from pyverif.frontend import translate
-from pyverif.source import (
+from pontifex.frontend import translate
+from pontifex.source import (
     Assign,
     Bin,
     Ite,

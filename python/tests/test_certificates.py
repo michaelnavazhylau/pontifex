@@ -11,7 +11,7 @@ import textwrap
 
 import pytest
 
-from pyverif.pipeline import compile_source
+from pontifex.pipeline import compile_source
 from conftest import ROOT, example_source
 
 PROGRAMS = {
@@ -172,9 +172,9 @@ def test_float_backend_specialization_requires_no_float_computation(tmp_path):
     text = compile_source(textwrap.dedent(PROGRAMS["loop_then_continuation"]), namespace="Certificate").lean_source
     text += """
 example (fuel : Nat) (args : List Float) :
-    Certificate.fCompiled PyVerif.Ops.float fuel args =
-      PyVerif.Fn.run PyVerif.Ops.float Certificate.fIR fuel args :=
-  Certificate.f_compiled_link PyVerif.Ops.float fuel args
+    Certificate.fCompiled Pontifex.Ops.float fuel args =
+      Pontifex.Fn.run Pontifex.Ops.float Certificate.fIR fuel args :=
+  Certificate.f_compiled_link Pontifex.Ops.float fuel args
 """
     result = check_lean(tmp_path, text)
     assert result.returncode == 0, result.stdout + result.stderr

@@ -21,9 +21,9 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "python"))
 
-from pyverif.frontend import translate
-from pyverif.interp import Returned, float_bits, run_float
-from pyverif.pipeline import (
+from pontifex.frontend import translate
+from pontifex.interp import Returned, float_bits, run_float
+from pontifex.pipeline import (
     compare_outcomes, find_lean_exe, load_python_function, observe_python, run_lean,
 )
 

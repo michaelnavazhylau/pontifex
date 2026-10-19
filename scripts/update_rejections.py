@@ -18,8 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "python"))
 
-from pyverif.errors import FrontendError  # noqa: E402
-from pyverif.frontend import translate  # noqa: E402
+from pontifex.errors import FrontendError  # noqa: E402
+from pontifex.frontend import translate  # noqa: E402
 
 CASES = ROOT / "tests" / "rejections" / "cases"
 EXPECTED = ROOT / "tests" / "rejections" / "expected"
