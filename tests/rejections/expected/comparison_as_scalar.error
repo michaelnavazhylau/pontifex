@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/comparison_as_scalar.py:2:12: comparison produces a boolean and cannot be used as a scalar

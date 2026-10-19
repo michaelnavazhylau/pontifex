@@ -7,6 +7,7 @@
   `simulateIR` is the SSA IR it was generated from (the same data as the
   accompanying `.ir.json`, which the Lean JSON decoder also accepts).
 -/
+import PyVerif.Core.Config
 import PyVerif.Core.Semantics
 import PyVerif.Core.Lower
 set_option linter.unusedVariables false
@@ -14,6 +15,14 @@ set_option linter.unusedVariables false
 namespace PyVerif.Generated.FreeFallLoop
 
 open PyVerif
+
+/-- Semantic configuration this artifact was generated under. -/
+def pyverifConfig : Config :=
+  { irVersion := 1
+    fuelPolicy := .allFuel
+    numericMode := .exactRat }
+
+#guard pyverifConfig.schemaMatches
 
 /-- The checked SSA IR that `simulate` was generated from. -/
 def simulateIR : Fn :=

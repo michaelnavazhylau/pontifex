@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/chained_compare.py:2:8: chained comparisons are not supported

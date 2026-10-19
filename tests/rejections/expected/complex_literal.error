@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/complex_literal.py:2:12: literal of type complex is not supported

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/try_except.py:2:5: statement 'Try' is not supported

@@ -27,6 +27,8 @@ uv sync                                   # Python tooling (pytest, hypothesis)
 lake build                                # Lean library, generated examples, runner
 python scripts/generate.py                # regenerate PyVerif/Generated/*.lean
 uv run pytest                             # frontend, interpreter, differential tests
+make corpus                               # triple differential: CPython / IR / Lean
+python scripts/update_rejections.py       # refresh rejection diagnostics after review
 
 # translate one file
 uv run python -m pyverif ir       examples/free_fall.py
@@ -50,6 +52,8 @@ by the differential tests.
 | Control-flow compiled code (`if`/`while`) = IR semantics | **proved** for every fuel, input, and `Ops α` backend; full outcomes preserved |
 | Clamped integrator = independent piecewise spec | `PyVerif/Examples/ControlFlow.lean`, kernel-checked |
 | General modified-energy invariant | **open**; current core-only algebra helper is limited, and only a finite grid is checked |
+| Artifact config/schema stamped | `#guard` in every generated module; `generate.py` cross-checks Lean and Python versions |
+| Certificate axiom hygiene | `#audit_axioms` over every lowering/linkage theorem at build time |
 
 Two numeric readings are first class and never confused:
 
@@ -96,7 +100,10 @@ PyVerif/
   Examples/ControlFlow.lean clamped-step spec and Float certificate examples
 python/pyverif/
   certify.py            proof-producing control-flow backend (all-fuel linkage)
+  version.py            IR schema version shared with Lean
   ...                   frontend, SSA lowering, emitter, interpreter, CLI
+corpus/                 18-program triple-differential corpus + manifest
+tests/rejections/       57 rejected programs with committed diagnostics
 examples/               Python programs that are translated
 python/tests/           unit, rejection, differential (incl. Lean oracle) tests
 TODO.md                 ordered implementation roadmap with acceptance criteria
@@ -147,15 +154,15 @@ Completed: all-fuel code↔IR certificates for nested `if`/`while`, a verified
 SSA lowering with per-program `rfl` certificates, backend-parametric
 full-outcome preservation, and corruption-rejection tests.
 
-The ordered, acceptance-criteria-backed plan lives in `TODO.md`. In short:
+The ordered, acceptance-criteria-backed plan lives in `TODO.md`. P0 is
+complete (config stamping, axiom gate, rejection corpus, differential corpus).
+Next:
 
-1. **P0 (now):** artifact config stamping + guards, an axiom/`sorry` build gate,
-   a rejection corpus with committed diagnostics, and a differential corpus.
-2. **P1:** an outcome lattice with a fuel-refinement theorem, explicit
+1. **P1:** an outcome lattice with a fuel-refinement theorem, explicit
    exceptional/stuck outcomes (division by zero first), and closing the Float
    boundary model.
-3. **P2:** a verified reflective `Rat` normaliser (closes the modified-energy
+2. **P2:** a verified reflective `Rat` normaliser (closes the modified-energy
    and n-step theorems), a spec database with `pyverif_step`, and Float
    value/bit-level lemmas.
-4. **P3:** multi-exit returns, state vectors, function calls, an opacity
+3. **P3:** multi-exit returns, state vectors, function calls, an opacity
    lattice, and Python integer semantics.

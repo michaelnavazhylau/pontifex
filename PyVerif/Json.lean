@@ -13,6 +13,7 @@
   interpretation.
 -/
 import Lean
+import PyVerif.Core.Config
 import PyVerif.Core.Semantics
 
 namespace PyVerif.Json
@@ -158,6 +159,10 @@ def decodeStrList (j : Json) (k : String) : Except String (List String) := do
   arr.toList.mapM Json.getStr?
 
 def decodeFn (j : Json) : Except String Fn := do
+  let version ← getNat j "irVersion"
+  if version != PyVerif.irSchemaVersion then
+    throw s!"IR version mismatch: artifact has version {version}, \
+      this library expects {PyVerif.irSchemaVersion}; regenerate the artifact"
   let name ← getStr j "name"
   let params ← decodeStrList j "params"
   let slotNames ← decodeStrList j "slotNames"

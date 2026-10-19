@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/class_def.py:1:1: only function definitions may appear at module level

@@ -3,7 +3,7 @@
 PY ?= python3
 LAKE ?= lake
 
-.PHONY: all lean gen test check clean fmt
+.PHONY: all lean gen test check clean fmt corpus rejections
 
 all: lean test
 
@@ -15,10 +15,20 @@ lean:
 gen:
 	$(PY) scripts/generate.py
 
-## CI-style: generated artifacts fresh + Python tests + Lean build
+## Differential corpus (requires `lake build pyverif`)
+corpus:
+	$(PY) scripts/run_corpus.py --samples 32
+
+## Regenerate expected rejection diagnostics after reviewing a change
+rejections:
+	$(PY) scripts/update_rejections.py
+
+## CI-style: generated artifacts fresh + Python tests + Lean build + audit
 check: gen
 	$(PY) scripts/generate.py --check
+	$(PY) scripts/update_rejections.py --check
 	$(LAKE) build
+	$(PY) scripts/run_corpus.py --samples 8
 	uv run pytest
 
 test:

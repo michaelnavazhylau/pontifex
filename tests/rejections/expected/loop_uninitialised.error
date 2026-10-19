@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/loop_uninitialised.py:2:5: variable 'z' is assigned inside the loop but has no value before it; initialise it before the loop so the loop-carried slot is well-defined

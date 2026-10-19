@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/subscript.py:2:12: subscripting is not supported (no arrays/sequences in the verified subset)

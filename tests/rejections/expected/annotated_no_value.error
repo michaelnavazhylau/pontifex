@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/annotated_no_value.py:2:5: only 'name: type = value' is supported

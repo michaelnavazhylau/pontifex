@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/nested_function.py:2:5: statement 'FunctionDef' is not supported

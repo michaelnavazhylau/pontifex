@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/walrus.py:2:9: expression 'NamedExpr' is not supported

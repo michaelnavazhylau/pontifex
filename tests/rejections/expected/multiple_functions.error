@@ -1,0 +1,2 @@
+FrontendError
+tests/rejections/cases/multiple_functions.py:1:1: expected exactly one function definition, found 2 (f, g); select one explicitly

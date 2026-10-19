@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/dict_literal.py:2:12: dict literals are not supported in expressions (return a flat tuple of scalars instead)

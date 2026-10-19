@@ -7,12 +7,21 @@
   `stepIR` is the SSA IR it was generated from (the same data as the
   accompanying `.ir.json`, which the Lean JSON decoder also accepts).
 -/
+import PyVerif.Core.Config
 import PyVerif.Core.Semantics
 import PyVerif.Core.Lower
 
 namespace PyVerif.Generated.HarmonicOscillator
 
 open PyVerif
+
+/-- Semantic configuration this artifact was generated under. -/
+def pyverifConfig : Config :=
+  { irVersion := 1
+    fuelPolicy := .literal
+    numericMode := .exactRat }
+
+#guard pyverifConfig.schemaMatches
 
 /-- The checked SSA IR that `step` was generated from. -/
 def stepIR : Fn :=

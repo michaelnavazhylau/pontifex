@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/import_from.py:1:1: imports are not supported: translated programs must be self-contained

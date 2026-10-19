@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/empty_return_tuple.py:2:5: empty return tuple

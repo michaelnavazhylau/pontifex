@@ -1,0 +1,507 @@
+{
+  "programs": [
+    {
+      "file": "free_fall_step.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        }
+      ]
+    },
+    {
+      "file": "harmonic_step.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        }
+      ]
+    },
+    {
+      "file": "clamped_step.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "positive",
+          "min": 1,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        }
+      ]
+    },
+    {
+      "file": "saturation.py",
+      "function": "clamp",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        }
+      ]
+    },
+    {
+      "file": "abs_branch.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        }
+      ]
+    },
+    {
+      "file": "newton_step.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "positive",
+          "min": 1,
+          "max": 4
+        }
+      ]
+    },
+    {
+      "file": "bisection_step.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        }
+      ]
+    },
+    {
+      "file": "velocity_verlet.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        }
+      ]
+    },
+    {
+      "file": "pid_step.py",
+      "function": "update",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        }
+      ]
+    },
+    {
+      "file": "projectile_clamped.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "positive",
+          "min": 1,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        }
+      ]
+    },
+    {
+      "file": "free_fall_loop.py",
+      "function": "simulate",
+      "fuel": 512,
+      "params": [
+        {
+          "kind": "nonnegative",
+          "min": 0,
+          "max": 2
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "positive",
+          "min": 1,
+          "max": 4,
+          "dens": [
+            1,
+            2,
+            4,
+            8,
+            16,
+            32
+          ]
+        }
+      ]
+    },
+    {
+      "file": "damped_loop.py",
+      "function": "simulate",
+      "fuel": 512,
+      "params": [
+        {
+          "kind": "nonnegative",
+          "min": 0,
+          "max": 2
+        },
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": 0,
+          "max": 8
+        },
+        {
+          "kind": "positive",
+          "min": 1,
+          "max": 4,
+          "dens": [
+            1,
+            2,
+            4,
+            8,
+            16,
+            32
+          ]
+        }
+      ]
+    },
+    {
+      "file": "compound_loop.py",
+      "function": "balance",
+      "fuel": 128,
+      "params": [
+        {
+          "kind": "nat",
+          "max": 12
+        },
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "rat",
+          "min": -1,
+          "max": 1,
+          "dens": [
+            1,
+            2,
+            4,
+            8
+          ]
+        }
+      ]
+    },
+    {
+      "file": "series_loop.py",
+      "function": "partial_sum",
+      "fuel": 128,
+      "params": [
+        {
+          "kind": "nat",
+          "max": 12
+        },
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -1,
+          "max": 1,
+          "dens": [
+            1,
+            2,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "file": "nested_loop.py",
+      "function": "accumulate",
+      "fuel": 512,
+      "params": [
+        {
+          "kind": "nat",
+          "max": 6
+        },
+        {
+          "kind": "nat",
+          "max": 6
+        },
+        {
+          "kind": "rat",
+          "min": -2,
+          "max": 2
+        }
+      ]
+    },
+    {
+      "file": "logistic_loop.py",
+      "function": "trajectory",
+      "fuel": 128,
+      "params": [
+        {
+          "kind": "nat",
+          "max": 12
+        },
+        {
+          "kind": "rat",
+          "min": 0,
+          "max": 1,
+          "dens": [
+            1,
+            2,
+            4
+          ]
+        },
+        {
+          "kind": "rat",
+          "min": 0,
+          "max": 4,
+          "dens": [
+            1,
+            2,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "file": "wrap_angle.py",
+      "function": "wrap",
+      "fuel": 256,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "positive",
+          "min": 1,
+          "max": 4,
+          "dens": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "file": "branchy_recurrence.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -1,
+          "max": 1,
+          "dens": [
+            1,
+            2,
+            4,
+            8
+          ]
+        },
+        {
+          "kind": "rat",
+          "min": 0,
+          "max": 8
+        }
+      ]
+    }
+  ]
+}

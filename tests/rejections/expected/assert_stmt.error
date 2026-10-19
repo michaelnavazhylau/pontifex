@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/assert_stmt.py:2:5: statement 'Assert' is not supported

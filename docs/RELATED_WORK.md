@@ -203,7 +203,7 @@ substantially easier.
 Ordered by payoff per unit of risk for this repository. Each is deliberately
 scoped so it can land without changing the existing certificates.
 
-### 1. Introduce an explicit outcome lattice and refinement theorem
+### 1. Introduce an explicit outcome lattice and refinement theorem — next (P1/T5)
 
 Define an order on outcomes with exhaustion (and a future `stuck`/`error`) as
 bottom, prove that `n ≤ m` implies "if the run with fuel `n` returned, the run
@@ -227,7 +227,7 @@ IR constructs arrive.
 **First step:** a design note plus `Outcome.failed`, wired through `exec` and
 the Python interpreter, with division-by-zero as the first error kind.
 
-### 3. Stamp and assert the artifact configuration
+### 3. Stamp and assert the artifact configuration — ✅ P0/T1
 
 Emit a `def pyverifConfig : Config := { irVersion := …, fuelPolicy := … }` in
 each generated module and `#guard` the invariants the proof depends on. Extend
@@ -271,7 +271,7 @@ currently written by hand against generated definitions.
 macro that repeatedly applies them, then rewrite the free-fall spec link to use
 it.
 
-### 7. Add a negative-test corpus with committed expected errors
+### 7. Add a negative-test corpus with committed expected errors — ✅ P0/T3
 
 Our rejection tests assert "raises", but not the exact diagnostic, and there is
 no repository of programs we deliberately refuse. Aeneas's `known-failure`
@@ -282,7 +282,7 @@ whole corpus in CI.
 **First step:** extend `test_frontend.py` to compare against committed
 `.error` snapshots and add a `tests/rejections/` directory.
 
-### 8. Add a differential corpus beyond examples
+### 8. Add a differential corpus beyond examples — ✅ P0/T4
 
 Translate a small curated set of real numerical routines (e.g. from
 `math`/physics exercises) inside the subset, and run the triple differential

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/large_pow.py:2:12: '**' exponent must be an integer in [0, 8], got 9 (non-integer powers would require a transcendental function)

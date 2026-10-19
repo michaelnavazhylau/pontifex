@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/fstring.py:2:12: expression 'JoinedStr' is not supported

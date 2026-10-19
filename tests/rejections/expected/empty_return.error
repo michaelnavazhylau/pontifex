@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/empty_return.py:2:5: return must produce at least one scalar (state vector)

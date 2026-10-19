@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/chained_assign.py:2:5: chained assignment (a = b = c) is not supported

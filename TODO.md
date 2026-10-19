@@ -16,9 +16,13 @@ Sizes: **S** ≤ 1 day, **M** 2–4 days, **L** > 1 week.
 
 ---
 
-## P0 — trust plumbing and test corpus (do first)
+## P0 — trust plumbing and test corpus — ✅ complete
 
-### T1. Stamp the artifact configuration and guard it — **S**, low risk
+Implemented in this repository: schema/config stamping with `#guard`, build-time
+axiom auditing of every certificate, 57 committed rejection snapshots, and an
+18-program triple-differential corpus.
+
+### ✅ T1. Stamp the artifact configuration and guard it — **S**, low risk
 
 **Why.** A generated proof silently weakens if a semantic flag changes (fuel
 policy, future float mode, certificate mode). Charon solves this by embedding
@@ -37,7 +41,7 @@ policy, future float mode, certificate mode). Charon solves this by embedding
 **Acceptance.** Changing a constant without regenerating fails `lake build` with
 a pointed message; `generate.py --check` detects the mismatch.
 
-### T2. Axiom and `sorry` gate for generated modules — **S**, low risk
+### ✅ T2. Axiom and `sorry` gate for generated modules — **S**, low risk
 
 **Why.** We already audit axioms in one test; make it a build-level gate so a
 future tactic cannot sneak `native_decide` into a linkage proof.
@@ -54,7 +58,7 @@ future tactic cannot sneak `native_decide` into a linkage proof.
 **Acceptance.** Deliberately inserting `by native_decide` into a generated
 linkage theorem fails the gate with the theorem name.
 
-### T3. Rejection corpus with committed diagnostics — **S**, low risk
+### ✅ T3. Rejection corpus with committed diagnostics — **S**, low risk
 
 **Why.** Aeneas keeps `known-failure` tests with committed `.out` files so
 “correctly rejects this” is a regression. We assert only that an error is
@@ -73,7 +77,7 @@ raised, not what it says.
 **Acceptance.** Corpus runs in `make check`; changing a diagnostic message
 requires updating the snapshot deliberately.
 
-### T4. Differential corpus and allowlist — **M**, low risk
+### ✅ T4. Differential corpus and allowlist — **M**, low risk
 
 **Why.** Four examples are too few to catch frontend regressions. Charon
 translates the top 500 crates; Aeneas has 113 programs.
@@ -289,7 +293,7 @@ changes meaning between exact and float modes.
 
 ## Recommended sequence
 
-1. **T1, T2, T3** (small, immediate trust/regression wins).
+1. ✅ **T1–T4** complete.
 2. **T4** (corpus) alongside **T5 + T6** (one outcome/lattice window).
 3. **T7** (numeric boundaries) before promising any Float result.
 4. **T8** (ring) to unlock the two remaining physics theorems; then **T9**

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/global_stmt.py:2:5: statement 'Global' is not supported

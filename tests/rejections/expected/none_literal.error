@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/none_literal.py:2:12: literal of type NoneType is not supported

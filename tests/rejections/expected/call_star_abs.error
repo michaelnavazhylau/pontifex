@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/call_star_abs.py:2:16: expression 'Starred' is not supported

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/lambda_expr.py:2:13: expression 'Lambda' is not supported

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/conditional_expr.py:2:12: conditional expressions are not supported

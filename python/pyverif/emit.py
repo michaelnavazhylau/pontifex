@@ -20,6 +20,12 @@ from fractions import Fraction
 from typing import Sequence
 
 from .frontend import Translated
+from .version import (
+    FUEL_POLICY_ALL_FUEL,
+    FUEL_POLICY_LITERAL,
+    IR_VERSION,
+    NUMERIC_MODE_EXACT_RAT,
+)
 from .ir import (
     And,
     Assign,
@@ -311,6 +317,7 @@ def emit_module(
     lines.append(f"  `{fn.name}IR` is the SSA IR it was generated from (the same data as the")
     lines.append("  accompanying `.ir.json`, which the Lean JSON decoder also accepts).")
     lines.append("-/")
+    lines.append("import PyVerif.Core.Config")
     lines.append("import PyVerif.Core.Semantics")
     lines.append("import PyVerif.Core.Lower")
     if not straight_line:
@@ -320,6 +327,15 @@ def emit_module(
     lines.append(f"namespace {namespace}")
     lines.append("")
     lines.append("open PyVerif")
+    lines.append("")
+    fuel_policy = FUEL_POLICY_LITERAL if straight_line else FUEL_POLICY_ALL_FUEL
+    lines.append("/-- Semantic configuration this artifact was generated under. -/")
+    lines.append("def pyverifConfig : Config :=")
+    lines.append(f"  {{ irVersion := {IR_VERSION}")
+    lines.append(f"    fuelPolicy := .{fuel_policy}")
+    lines.append(f"    numericMode := .{NUMERIC_MODE_EXACT_RAT} }}")
+    lines.append("")
+    lines.append("#guard pyverifConfig.schemaMatches")
     lines.append("")
     lines.append(ir_declaration(fn.name, fn))
     from .source import desugar, source_declaration

@@ -93,10 +93,29 @@ The proof generator is not itself verified. Its generated proofs are checked
 per program; corrupting arithmetic, a phi predecessor, or fuel behavior makes
 the certificate fail. The tests exercise those mutations explicitly.
 
+## Build-time trust gates
+
+| Gate | Mechanism | Failure mode |
+| --- | --- | --- |
+| Schema drift | `pyverifConfig` + `#guard pyverifConfig.schemaMatches`; `generate.py` also cross-checks `IR_VERSION` against `irSchemaVersion` | `lake build` or regeneration fails |
+| Axiom leakage | generated `PyVerif/Audit.lean` runs `#audit_axioms` on every lowering/linkage theorem | build fails naming the theorem and axiom |
+| Stale artifacts | `scripts/generate.py --check` compares generated Lean, JSON, and the audit manifest | nonzero exit with the stale paths |
+| Wire-format drift | Lean JSON decoder rejects a mismatched `irVersion` | runner exits with a version error |
+| Rejection drift | `scripts/update_rejections.py --check` compares diagnostics byte-for-byte | nonzero exit listing stale snapshots |
+| Corpus regression | `scripts/run_corpus.py` compares CPython, IR exact, IR binary64, and Lean on deterministic inputs | nonzero exit listing the program and mode |
+
+`native_decide` remains allowed only in explicitly labelled `*_sample_*`
+theorems (build-time regression checks); the audit excludes those by name and
+the trust-gate tests reject `native_decide` anywhere else in generated files.
+
 ## Verification status
 
 | Claim | Status |
 | --- | --- |
+| Artifact config and IR schema stamped | **Checked** by `#guard` in every generated module |
+| Certificates depend only on standard axioms | **Checked** at build time by `#audit_axioms` |
+| Rejection diagnostics are stable | **Snapshotted** (57 cases, exact class/message/location) |
+| Differential corpus (source ↔ IR ↔ Lean) | **Tested** (18 programs × exact/rat/float) |
 | Core AST → emitted IR body | **Proved**, `rfl`, every generated program |
 | Straight-line code = IR semantics | **Proved**, `rfl`, selected fuel, exact Rat |
 | Branch/loop compiled code = IR semantics | **Proved**, all fuel and `Ops α`, full outcomes |

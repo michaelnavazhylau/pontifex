@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import Any, Iterable, Sequence
 
+from .version import IR_VERSION
+
 Json = dict[str, Any]
 
 
@@ -252,6 +254,7 @@ class Fn:
 
     def to_json(self) -> Json:
         return {
+            "irVersion": IR_VERSION,
             "name": self.name,
             "params": list(self.params),
             "slotNames": list(self.slot_names),
@@ -328,6 +331,11 @@ def _stmt_of_json(j: Json) -> Stmt:
 
 
 def fn_of_json(j: Json) -> Fn:
+    version = j.get("irVersion")
+    if version != IR_VERSION:
+        raise ValueError(
+            f"IR version mismatch: artifact has {version!r}, this package expects {IR_VERSION}"
+        )
     return Fn(
         name=j["name"],
         params=tuple(j["params"]),

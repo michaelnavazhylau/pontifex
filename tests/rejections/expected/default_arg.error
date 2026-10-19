@@ -1,0 +1,2 @@
+FrontendError
+tests/rejections/cases/default_arg.py:1:1: default parameter values are not supported

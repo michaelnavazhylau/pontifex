@@ -1,3 +1,4 @@
+import PyVerif.Core.Config
 import PyVerif.Core.IR
 import PyVerif.Core.Ops
 import PyVerif.Core.Semantics
@@ -9,3 +10,4 @@ import PyVerif.Spec.Mechanics
 import PyVerif.Generated
 import PyVerif.Examples.SpecLinks
 import PyVerif.Examples.ControlFlow
+import PyVerif.Audit

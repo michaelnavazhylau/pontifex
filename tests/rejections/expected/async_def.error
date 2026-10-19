@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/async_def.py:1:1: async functions are not supported

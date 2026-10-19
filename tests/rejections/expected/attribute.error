@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/attribute.py:2:12: attribute access '.real' is not supported (no modules, objects or methods in the verified subset)

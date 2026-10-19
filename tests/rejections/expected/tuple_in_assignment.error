@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/tuple_in_assignment.py:2:9: tuple literals are not supported in expressions (return a flat tuple of scalars instead)

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/bool_as_scalar.py:2:12: boolean value used where a scalar is expected

@@ -1,0 +1,2 @@
+FrontendError
+tests/rejections/cases/decorator.py:2:1: decorators are not supported

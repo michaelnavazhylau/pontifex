@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/fractional_pow.py:2:12: only '**' with an integer literal exponent is supported (translated by repeated multiplication)

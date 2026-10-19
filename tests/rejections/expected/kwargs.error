@@ -1,0 +1,2 @@
+FrontendError
+tests/rejections/cases/kwargs.py:1:1: *args/**kwargs are not supported
