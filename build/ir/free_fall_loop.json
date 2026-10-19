@@ -1,0 +1,184 @@
+{
+  "name": "simulate",
+  "params": [
+    "t_end",
+    "x",
+    "v",
+    "a",
+    "dt"
+  ],
+  "slotNames": [
+    "t_end",
+    "x",
+    "v",
+    "a",
+    "dt",
+    "t",
+    "t#loop",
+    "v#loop",
+    "x#loop",
+    "v_1",
+    "x_1",
+    "t_1"
+  ],
+  "body": {
+    "k": "seq",
+    "ss": [
+      {
+        "k": "assign",
+        "slot": 5,
+        "e": {
+          "k": "lit",
+          "num": 0,
+          "den": 1
+        }
+      },
+      {
+        "k": "seq",
+        "ss": [
+          {
+            "k": "assign",
+            "slot": 6,
+            "e": {
+              "k": "slot",
+              "i": 5
+            }
+          },
+          {
+            "k": "assign",
+            "slot": 7,
+            "e": {
+              "k": "slot",
+              "i": 2
+            }
+          },
+          {
+            "k": "assign",
+            "slot": 8,
+            "e": {
+              "k": "slot",
+              "i": 1
+            }
+          },
+          {
+            "k": "while",
+            "c": {
+              "k": "cmp",
+              "op": "lt",
+              "l": {
+                "k": "slot",
+                "i": 6
+              },
+              "r": {
+                "k": "slot",
+                "i": 0
+              }
+            },
+            "phis": [
+              {
+                "k": "phi",
+                "slot": 6,
+                "lhs": 11,
+                "rhs": 5
+              },
+              {
+                "k": "phi",
+                "slot": 7,
+                "lhs": 9,
+                "rhs": 2
+              },
+              {
+                "k": "phi",
+                "slot": 8,
+                "lhs": 10,
+                "rhs": 1
+              }
+            ],
+            "body": {
+              "k": "seq",
+              "ss": [
+                {
+                  "k": "assign",
+                  "slot": 9,
+                  "e": {
+                    "k": "bin",
+                    "op": "add",
+                    "l": {
+                      "k": "slot",
+                      "i": 7
+                    },
+                    "r": {
+                      "k": "bin",
+                      "op": "mul",
+                      "l": {
+                        "k": "slot",
+                        "i": 3
+                      },
+                      "r": {
+                        "k": "slot",
+                        "i": 4
+                      }
+                    }
+                  }
+                },
+                {
+                  "k": "assign",
+                  "slot": 10,
+                  "e": {
+                    "k": "bin",
+                    "op": "add",
+                    "l": {
+                      "k": "slot",
+                      "i": 8
+                    },
+                    "r": {
+                      "k": "bin",
+                      "op": "mul",
+                      "l": {
+                        "k": "slot",
+                        "i": 9
+                      },
+                      "r": {
+                        "k": "slot",
+                        "i": 4
+                      }
+                    }
+                  }
+                },
+                {
+                  "k": "assign",
+                  "slot": 11,
+                  "e": {
+                    "k": "bin",
+                    "op": "add",
+                    "l": {
+                      "k": "slot",
+                      "i": 6
+                    },
+                    "r": {
+                      "k": "slot",
+                      "i": 4
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "k": "ret",
+        "es": [
+          {
+            "k": "slot",
+            "i": 8
+          },
+          {
+            "k": "slot",
+            "i": 7
+          }
+        ]
+      }
+    ]
+  }
+}

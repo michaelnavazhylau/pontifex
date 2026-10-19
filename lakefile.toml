@@ -1,0 +1,14 @@
+name = "pyverif"
+version = "0.1.0"
+defaultTargets = ["PyVerif", "pyverif"]
+
+# Core-Lean-only build (no Mathlib, no Physlib).  See docs/TRUST.md for the
+# consequences: everything in `PyVerif/Core` is proved, but general polynomial
+# identities over `Rat` cannot be discharged without a ring tactic, so domain
+# proofs that need one are marked in `PyVerif/Spec/Mechanics.lean`.
+[[lean_lib]]
+name = "PyVerif"
+
+[[lean_exe]]
+name = "pyverif"
+root = "Main"

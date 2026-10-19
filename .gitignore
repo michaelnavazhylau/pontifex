@@ -1,0 +1,14 @@
+# Lean
+/.lake/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.hypothesis/
+*.egg-info/
+dist/
+
+# OS
+.DS_Store

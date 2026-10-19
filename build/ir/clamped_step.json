@@ -1,0 +1,116 @@
+{
+  "name": "step",
+  "params": [
+    "x",
+    "v",
+    "dt",
+    "limit"
+  ],
+  "slotNames": [
+    "x",
+    "v",
+    "dt",
+    "limit",
+    "x_1",
+    "x_2",
+    "v_1",
+    "v_2",
+    "x_3"
+  ],
+  "body": {
+    "k": "seq",
+    "ss": [
+      {
+        "k": "assign",
+        "slot": 4,
+        "e": {
+          "k": "bin",
+          "op": "add",
+          "l": {
+            "k": "slot",
+            "i": 0
+          },
+          "r": {
+            "k": "bin",
+            "op": "mul",
+            "l": {
+              "k": "slot",
+              "i": 1
+            },
+            "r": {
+              "k": "slot",
+              "i": 2
+            }
+          }
+        }
+      },
+      {
+        "k": "ite",
+        "c": {
+          "k": "cmp",
+          "op": "gt",
+          "l": {
+            "k": "slot",
+            "i": 4
+          },
+          "r": {
+            "k": "slot",
+            "i": 3
+          }
+        },
+        "t": {
+          "k": "seq",
+          "ss": [
+            {
+              "k": "assign",
+              "slot": 5,
+              "e": {
+                "k": "slot",
+                "i": 3
+              }
+            },
+            {
+              "k": "assign",
+              "slot": 6,
+              "e": {
+                "k": "lit",
+                "num": 0,
+                "den": 1
+              }
+            }
+          ]
+        },
+        "e": {
+          "k": "skip"
+        },
+        "phis": [
+          {
+            "k": "phi",
+            "slot": 7,
+            "lhs": 6,
+            "rhs": 1
+          },
+          {
+            "k": "phi",
+            "slot": 8,
+            "lhs": 5,
+            "rhs": 4
+          }
+        ]
+      },
+      {
+        "k": "ret",
+        "es": [
+          {
+            "k": "slot",
+            "i": 8
+          },
+          {
+            "k": "slot",
+            "i": 7
+          }
+        ]
+      }
+    ]
+  }
+}

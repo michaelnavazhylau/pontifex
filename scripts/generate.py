@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""Regenerate the checked-in Lean translations of ``examples/*.py``.
+
+    python scripts/generate.py            # write PyVerif/Generated/*.lean
+    python scripts/generate.py --check    # fail if the files are stale
+
+Every generated module contains:
+
+* ``<fn>IR``            -- the SSA IR as a Lean value,
+* ``<fn>``              -- the functional translation,
+* ``<fn>Source``        -- the core source AST emitted by the frontend,
+* ``<fn>_lowering``     -- `rfl` certificate that the verified lowering
+                           reproduces ``<fn>IR.body``,
+* ``<fn>_link``        -- kernel linkage (rfl for straight-line programs),
+* ``<fn>_compiled_link`` -- all-fuel, all-backend linkage for control flow,
+* ``<fn>_sample_i``     -- additional exact-rational regression checks.
+
+The same IR is written to ``build/ir/<stem>.json`` for the Lean JSON consumer
+and for differential testing.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "python"))
+
+from pyverif.emit import emit_module  # noqa: E402
+from pyverif.frontend import translate  # noqa: E402
+from pyverif.interp import Returned, run_exact  # noqa: E402
+from pyverif.pipeline import default_namespace, default_samples  # noqa: E402
+
+EXAMPLES = [
+    "free_fall",
+    "harmonic_oscillator",
+    "free_fall_loop",
+    "clamped_step",
+]
+
+FUEL = 64
+
+
+def generate_one(stem: str) -> tuple[str, str]:
+    path = ROOT / "examples" / f"{stem}.py"
+    source = path.read_text()
+    translated = translate(source, filename=str(path.relative_to(ROOT)))
+    namespace = default_namespace(stem)
+    conformance = []
+    for sample in default_samples(translated.fn):
+        out = run_exact(translated.fn, sample, fuel=FUEL)
+        if isinstance(out, Returned):
+            conformance.append((sample, out.values))
+    lean = emit_module(
+        translated,
+        namespace=namespace,
+        fuel=FUEL,
+        conformance=conformance,
+        generator=f"python scripts/generate.py",
+    )
+    return lean, translated.fn.to_json_text()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true", help="verify files are up to date")
+    args = parser.parse_args(argv)
+
+    stale: list[str] = []
+    for stem in EXAMPLES:
+        lean, ir_json = generate_one(stem)
+        namespace = default_namespace(stem)
+        lean_path = ROOT / "PyVerif" / "Generated" / f"{namespace.split('.')[-1]}.lean"
+        ir_path = ROOT / "build" / "ir" / f"{stem}.json"
+        lean_path.parent.mkdir(parents=True, exist_ok=True)
+        ir_path.parent.mkdir(parents=True, exist_ok=True)
+        if args.check:
+            if not lean_path.exists() or lean_path.read_text() != lean:
+                stale.append(str(lean_path))
+            if not ir_path.exists() or ir_path.read_text() != ir_json:
+                stale.append(str(ir_path))
+            continue
+        lean_path.write_text(lean)
+        ir_path.write_text(ir_json)
+        print(f"wrote {lean_path.relative_to(ROOT)} and {ir_path.relative_to(ROOT)}")
+
+    umbrella = ROOT / "PyVerif" / "Generated.lean"
+    imports = "\n".join(
+        f"import PyVerif.Generated.{default_namespace(stem).split('.')[-1]}" for stem in EXAMPLES
+    )
+    content = (
+        "/- Umbrella module for the checked-in generated translations.\n"
+        "   Regenerate with `python scripts/generate.py`. -/\n" + imports + "\n"
+    )
+    if args.check:
+        if not umbrella.exists() or umbrella.read_text() != content:
+            stale.append(str(umbrella))
+    else:
+        umbrella.write_text(content)
+        print(f"wrote {umbrella.relative_to(ROOT)}")
+
+    if args.check and stale:
+        print("stale generated artifacts:", *stale, sep="\n  ")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
