@@ -247,14 +247,24 @@ tested trust boundary. Full IEEE arithmetic proofs remain future work.
 
 ## P3 — language growth (after P1)
 
-### T11. Multi-exit returns with verified lowering — **M**
+### ✅ T11. Multi-exit returns with verified lowering — **M**, low risk (schema unchanged)
 
-Design spike first: early `return` inside branches/loops currently rejected.
-Options: (a) lower to an explicit result/flag slot and one exit; (b) introduce a
-CFG. (a) preserves the structured IR and is likely enough for numerical code.
+Implemented without a CFG or a result/flag slot. IR sequences already stop at
+the first `returned` outcome, so an early exit short-circuits its enclosing
+sequence, `if` merge, and loop back edge. The lowering now computes `if` merges
+from the environments of the branches that can still fall through, so a branch
+that always returns contributes no phi input (its side is a dead but defined
+slot); loop variables assigned only on a returning path are not loop-carried.
+New restrictions: unreachable code after a definitely-returning statement,
+functions that can fall through without a return, and mismatched return arity
+are rejected with located diagnostics.
 
-**Acceptance.** Early returns accepted, lowering certificate still `rfl`-checked,
-semantics and tests updated; no certificate weakened.
+**Acceptance.** ✅ Early returns are accepted in branches and loop bodies; the
+per-program `<fn>_lowering := rfl` certificate still checks the Lean reference
+lowering; `examples/early_exit.py`, three kernel-checked certificate programs,
+a corpus program, and the rejection snapshots cover the new shapes. `Seq`
+semantics and the emitted-code certificates were already correct and are
+unchanged.
 
 ### T12. State vectors / arrays — **L**
 
@@ -316,8 +326,8 @@ changes meaning between exact and float modes.
 4. ✅ **T8–T10** complete: certified normalization, the step tactic, and
    two-tier Float specs. Native IEEE proofs and rational-coefficient
    normalization remain open.
-5. Grow the language only after the outcome model and corpus are stable:
-   **T11 → T12 → T13 → T14 → T15**.
+5. ✅ **T11** complete. Grow the language only after the outcome model and
+   corpus are stable: **T12 → T13 → T14 → T15**.
 
 ## Explicit non-goals (for now)
 

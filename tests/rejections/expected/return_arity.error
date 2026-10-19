@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/return_arity.py:4:5: return produces 2 value(s) but an earlier return produces 1; all returns of a function must have the same arity

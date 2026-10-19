@@ -13,13 +13,23 @@ Pipeline
    * assignments inside a ``while`` become loop-carried header slots, with the
      body's final value as the back edge.
 
+A ``return`` may appear early, anywhere a statement is allowed.  The IR
+sequence already short-circuits on the ``returned`` outcome, so a returning
+branch never reaches its enclosing ``if`` merge or loop back edge.  Merge slots
+are computed from the environments of the branches that can still fall
+through; a branch that always returns contributes a dead (but defined)
+placeholder to the other side.  Two restrictions keep this sound and explicit:
+code after a statement that always returns is rejected as unreachable, and a
+function must return on every path (implicit ``None`` fall-through is not
+modelled).
+
 Documented subset (v0)
 ----------------------
 * one function per module (or a selected function), no decorators, no
   ``*args``/``**kwargs``/keyword-only parameters, no defaults;
 * scalar parameters (annotations are advisory and are not used for typing);
 * statements: simple/annotated/augmented assignment, ``if``/``else``,
-  ``while``, ``return`` (single exit, last statement of the function), ``pass``;
+  ``while``, ``return`` (early exits allowed; every path must return), ``pass``;
 * expressions: names, int/float literals, ``+ - * /``, ``**`` with a small
   non-negative integer exponent, unary minus, ``abs(x)``;
 * conditions: comparisons (one operator, not chained), ``and``/``or``/``not``,
@@ -64,6 +74,7 @@ from .ir import (
     Un,
     Where,
     While,
+    stmts,
 )
 
 BINOP_NAMES = {
@@ -107,10 +118,26 @@ class Translated:
 # ---------------------------------------------------------------------------
 
 
+def stmt_returns(node: ast.stmt) -> bool:
+    """True when executing ``node`` never falls through to the next statement."""
+    if isinstance(node, ast.Return):
+        return True
+    if isinstance(node, ast.If):
+        return block_returns(node.body) and block_returns(node.orelse)
+    return False
+
+
+def block_returns(nodes: Sequence[ast.stmt]) -> bool:
+    """True when the block cannot reach the end (its last statement returns)."""
+    return bool(nodes) and stmt_returns(nodes[-1])
+
+
 def assigned_names(nodes: Iterable[ast.stmt]) -> set[str]:
     """Names assigned anywhere inside ``nodes`` (including nested control flow).
 
-    Used to decide which slots need a phi at an ``if`` merge or loop header.
+    Used to choose loop-carried header slots (an ``if`` merge is computed from
+    the lowered branch environments instead, so a branch that always returns
+    contributes nothing).
     Raises ``FrontendError`` for statements that cannot appear in the subset, so
     an unsupported construct is never silently ignored.
     """
@@ -159,6 +186,8 @@ class _Lowerer:
         self.slot_names: list[str] = list(params)
         self.env: dict[str, int] = {name: i for i, name in enumerate(params)}
         self._next_slot = len(params)
+        #: Arity fixed by the first return; every later return must agree.
+        self.result_arity: int | None = None
 
     # -- slots -------------------------------------------------------------
 
@@ -301,23 +330,18 @@ class _Lowerer:
 
     # -- statements --------------------------------------------------------
 
-    def block(self, nodes: Sequence[ast.stmt], *, allow_return: bool) -> Stmt:
+    def block(self, nodes: Sequence[ast.stmt]) -> Stmt:
         out: list[Stmt] = []
         for index, node in enumerate(nodes):
+            if index and stmt_returns(nodes[index - 1]):
+                raise self.err(
+                    node,
+                    "unreachable statement: the preceding statement always returns",
+                )
             if isinstance(node, ast.Return):
-                if not allow_return:
-                    raise self.err(
-                        node,
-                        "return is only supported as the final statement of the function "
-                        "(single-exit restriction of the v0 subset)",
-                    )
-                if index != len(nodes) - 1:
-                    raise self.err(
-                        node, "return must be the last statement of the function (single exit)"
-                    )
                 out.append(Ret(self.returns(node)))
-                continue
-            out.append(self.stmt(node))
+            else:
+                out.append(self.stmt(node))
         return Seq(tuple(out))
 
     def returns(self, node: ast.Return) -> tuple[Expr, ...]:
@@ -326,8 +350,18 @@ class _Lowerer:
         if isinstance(node.value, ast.Tuple):
             if not node.value.elts:
                 raise self.err(node, "empty return tuple")
-            return tuple(self.expr(e) for e in node.value.elts)
-        return (self.expr(node.value),)
+            exprs = tuple(self.expr(e) for e in node.value.elts)
+        else:
+            exprs = (self.expr(node.value),)
+        if self.result_arity is None:
+            self.result_arity = len(exprs)
+        elif len(exprs) != self.result_arity:
+            raise self.err(
+                node,
+                f"return produces {len(exprs)} value(s) but an earlier return produces "
+                f"{self.result_arity}; all returns of a function must have the same arity",
+            )
+        return exprs
 
     def stmt(self, node: ast.stmt) -> Stmt:
         if isinstance(node, ast.Pass):
@@ -383,24 +417,53 @@ class _Lowerer:
     def if_(self, node: ast.If) -> Stmt:
         pre = dict(self.env)
         cond = self.cond(node.test)
+        then_returns = block_returns(node.body)
+        else_returns = block_returns(node.orelse)
 
         self.env = dict(pre)
-        then_stmt = self.block(node.body, allow_return=False)
+        then_stmt = self.block(node.body)
         then_env = dict(self.env)
 
         self.env = dict(pre)
-        else_stmt = self.block(node.orelse, allow_return=False) if node.orelse else Skip()
+        else_stmt = self.block(node.orelse) if node.orelse else Skip()
         else_env = dict(self.env)
 
-        merged = sorted(assigned_names(node.body) | assigned_names(node.orelse))
+        # Merge only variables whose binding differs between the paths that can
+        # still fall through.  A definitely-returning branch never reaches the
+        # merge, so it contributes no input (its side becomes a dead slot).
+        merged: set[str] = set()
+        if then_returns and else_returns:
+            pass
+        elif then_returns:
+            merged = {name for name, slot in else_env.items() if pre.get(name) != slot}
+        elif else_returns:
+            merged = {name for name, slot in then_env.items() if pre.get(name) != slot}
+        else:
+            for name in set(then_env) | set(else_env):
+                lhs, rhs = then_env.get(name), else_env.get(name)
+                if lhs == rhs:
+                    continue
+                if lhs is None or rhs is None:
+                    raise self.err(
+                        node,
+                        f"variable '{name}' may be unbound after the if: "
+                        "it is assigned in only one branch",
+                    )
+                merged.add(name)
+
         phis: list[Phi] = []
         self.env = dict(pre)
-        for name in merged:
-            if name not in then_env or name not in else_env:
-                # Unreachable: assigned_names is computed from the same nodes.
+        for name in sorted(merged):
+            then_slot = then_env.get(name, pre.get(name))
+            else_slot = else_env.get(name, pre.get(name))
+            if then_slot is None:
+                then_slot = else_slot
+            if else_slot is None:
+                else_slot = then_slot
+            if then_slot is None or else_slot is None:  # pragma: no cover - invariant
                 raise self.err(node, f"internal error: no value for '{name}' after if")
             slot = self.fresh(name)
-            phis.append(Phi(slot, then_env[name], else_env[name]))
+            phis.append(Phi(slot, then_slot, else_slot))
             self.env[name] = slot
         return Ite(cond, then_stmt, else_stmt, tuple(phis))
 
@@ -408,24 +471,30 @@ class _Lowerer:
         if node.orelse:
             raise self.err(node, "while/else is not supported")
         pre = dict(self.env)
-        loop_vars = sorted(assigned_names(node.body))
-        for name in loop_vars:
-            if name not in pre:
+        assigned = sorted(assigned_names(node.body))
+        # Only variables that already have a value can be loop-carried.  A
+        # variable first assigned inside the body is checked after lowering:
+        # if it is assigned only on a path that returns, it never reaches the
+        # back edge and needs no header.
+        carried = [name for name in assigned if name in pre]
+        introduced = [name for name in assigned if name not in pre]
+        headers = {name: self.fresh(f"{name}#loop") for name in carried}
+        self.env = dict(pre)
+        self.env.update(headers)
+        cond = self.cond(node.test)
+        body = self.block(node.body)
+        body_env = dict(self.env)
+        for name in introduced:
+            if name in body_env:
                 raise self.err(
                     node,
                     f"variable '{name}' is assigned inside the loop but has no value before it; "
                     "initialise it before the loop so the loop-carried slot is well-defined",
                 )
-        headers = {name: self.fresh(f"{name}#loop") for name in loop_vars}
-        self.env = dict(pre)
-        self.env.update(headers)
-        cond = self.cond(node.test)
-        body = self.block(node.body, allow_return=False)
-        body_env = dict(self.env)
-        phis = tuple(Phi(headers[name], body_env[name], pre[name]) for name in loop_vars)
+        phis = tuple(Phi(headers[name], body_env[name], pre[name]) for name in carried)
         # Initialise the header slots explicitly, in source order of the loop
         # variables; `While` itself only performs the back-edge updates.
-        init = tuple(Assign(headers[name], Slot(pre[name])) for name in sorted(loop_vars))
+        init = tuple(Assign(headers[name], Slot(pre[name])) for name in carried)
         self.env = dict(pre)
         self.env.update(headers)
         return Seq(init + (While(cond, phis, body),))
@@ -506,9 +575,16 @@ def translate(source: str, *, filename: str = "<string>", function: str | None =
 
     params = _check_signature(target, filename)
     lowerer = _Lowerer(filename, target.name, params)
-    body = lowerer.block(target.body, allow_return=True)
+    body = lowerer.block(target.body)
 
     ret_exprs = _return_exprs(body)
+    if not block_returns(target.body):
+        raise FrontendError(
+            f"function '{target.name}' does not return on every path; "
+            "implicit fall-through (returning None) is not supported",
+            target,
+            filename,
+        )
     result_names = tuple(
         lowerer.slot_names[e.index]
         if isinstance(e, Slot) and e.index < len(lowerer.slot_names)
@@ -526,8 +602,8 @@ def translate(source: str, *, filename: str = "<string>", function: str | None =
 
 
 def _return_exprs(body: Stmt) -> tuple[Expr, ...]:
-    if isinstance(body, Seq):
-        for stmt in reversed(body.body):
-            if isinstance(stmt, Ret):
-                return stmt.exprs
+    """Return expressions of the first return in pre-order (arity is uniform)."""
+    for stmt in stmts(body):
+        if isinstance(stmt, Ret):
+            return stmt.exprs
     raise FrontendError("function has no return statement")

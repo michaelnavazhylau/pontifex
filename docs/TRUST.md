@@ -65,6 +65,28 @@ monotonicity theorem, and rational division success/failure iff lemmas. General
 positive-duration loop termination and physics error bounds remain separate
 proof obligations; P1 does not establish them.
 
+## Multi-exit returns
+
+`return` may appear anywhere a statement is allowed, including inside `if`
+branches and `while` bodies. This needed no change to the IR or its semantics:
+`Seq` and the certified block composition already continue only on
+`fellThrough`, so a `returned` result short-circuits the enclosing sequence,
+branch, and loop (and skips the `if` merge / loop back edge) without a flag
+slot or a CFG.
+
+SSA merging is env-based. Only names whose binding differs between the paths
+that can still fall through need a phi, so a branch that always returns
+contributes no phi input; its side is a dead but defined placeholder (the
+incoming value, else the other branch's slot). A loop variable assigned only on
+a returning path is not loop-carried, because it never reaches the back edge.
+
+The frontend additionally rejects unreachable statements after a
+definitely-returning statement, functions that can fall through without a
+return, and returns that disagree on arity. The per-program
+`<fn>_lowering := rfl` certificate checks that the Lean reference lowering
+computes the same merges and slot allocation; the generated code certificates
+are unaffected because the outcome algebra was already right.
+
 ## Numeric readings and transport
 
 See **[FLOAT_POLICY.md](FLOAT_POLICY.md)** for the precise boundary contract.

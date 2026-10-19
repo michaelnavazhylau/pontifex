@@ -1,2 +1,0 @@
-UnsupportedError
-tests/rejections/cases/return_in_branch.py:3:9: return is only supported as the final statement of the function (single-exit restriction of the v0 subset)

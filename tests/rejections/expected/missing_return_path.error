@@ -1,0 +1,2 @@
+FrontendError
+tests/rejections/cases/missing_return_path.py:1:1: function 'f' does not return on every path; implicit fall-through (returning None) is not supported

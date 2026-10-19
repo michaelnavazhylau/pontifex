@@ -1,2 +1,2 @@
 UnsupportedError
-tests/rejections/cases/return_not_last.py:2:5: return must be the last statement of the function (single exit)
+tests/rejections/cases/return_not_last.py:3:5: unreachable statement: the preceding statement always returns

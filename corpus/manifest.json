@@ -548,6 +548,22 @@
           "max": 4
         }
       ]
+    },
+    {
+      "file": "early_exit.py",
+      "function": "advance",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -8,
+          "max": 8
+        },
+        {
+          "kind": "nat",
+          "max": 5
+        }
+      ]
     }
   ]
 }

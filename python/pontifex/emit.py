@@ -48,6 +48,7 @@ from .ir import (
     Un,
     Where,
     While,
+    stmts,
 )
 
 OP_SYMBOLS = {"add": "+", "sub": "-", "mul": "*", "div": "/"}
@@ -251,13 +252,15 @@ class Emitter:
 
 
 def return_arity(s: Stmt) -> int:
-    if isinstance(s, Ret):
-        return len(s.exprs)
-    if isinstance(s, Seq):
-        for item in reversed(s.body):
-            if isinstance(item, Ret):
-                return len(item.exprs)
-    raise ValueError("function body does not end in return")
+    """Arity of the function's returns; every return must agree (frontend)."""
+    returns = [stmt for stmt in stmts(s) if isinstance(stmt, Ret)]
+    if not returns:
+        raise ValueError("function body has no return statement")
+    arity = len(returns[0].exprs)
+    for ret in returns[1:]:
+        if len(ret.exprs) != arity:
+            raise ValueError("return statements disagree on arity")
+    return arity
 
 
 

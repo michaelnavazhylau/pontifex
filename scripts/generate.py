@@ -39,6 +39,7 @@ EXAMPLES = [
     "harmonic_oscillator",
     "free_fall_loop",
     "clamped_step",
+    "early_exit",
 ]
 
 FUEL = 64

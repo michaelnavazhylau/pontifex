@@ -8,6 +8,7 @@ import pytest
 
 from pontifex.errors import FrontendError, UnsupportedError
 from pontifex.frontend import translate
+from pontifex.interp import run_exact, to_option
 from pontifex.ir import (
     And,
     Assign,
@@ -150,7 +151,8 @@ BAD_PROGRAMS = {
     "import": "import math\ndef f(x: float):\n    return x\n",
     "for": "def f(x: float):\n    for i in range(3):\n        x = x + i\n    return x\n",
     "break": "def f(x: float):\n    while x < 3:\n        break\n    return x\n",
-    "return_in_if": "def f(x: float):\n    if x < 0:\n        return x\n    return x\n",
+    "fallthrough": "def f(x: float):\n    if x > 0:\n        return x\n",
+    "return_arity": "def f(x: float, y: float):\n    if x > 0:\n        return x\n    return x, y\n",
     "chained_compare": "def f(x: float, y: float):\n    if x < y < 3:\n        x = y\n    return x\n",
     "subscript": "def f(x: float):\n    return x[0]\n",
     "call": "def f(x: float):\n    return min(x, 2)\n",
@@ -194,3 +196,159 @@ def test_select_function_by_name():
     source = "def f(x: float):\n    return x\n\ndef g(x: float, y: float):\n    return x + y\n"
     t = translate(source, filename="two.py", function="g")
     assert t.fn.params == ("x", "y")
+
+
+# ---------------------------------------------------------------------------
+# Multi-exit returns (T11)
+# ---------------------------------------------------------------------------
+
+
+def _agrees_with_python(program: str, vectors):
+    from fractions import Fraction
+
+    source = textwrap.dedent(program)
+    fn = translate(source, filename="prog.py").fn
+    namespace: dict = {}
+    exec(source, namespace)  # noqa: S102 - CPython is the oracle in this test
+    python_fn = namespace[fn.name]
+    for args in vectors:
+        raw = python_fn(*args)
+        expected = tuple(
+            Fraction(v) for v in (raw if isinstance(raw, tuple) else (raw,))
+        )
+        assert to_option(run_exact(fn, args)) == expected, args
+
+
+def test_early_return_guard_needs_no_phi():
+    t = translate(
+        textwrap.dedent(
+            """
+            def f(x: float, y: float):
+                if x < 0:
+                    return -x
+                return x + y
+            """
+        ),
+        filename="guard.py",
+    )
+    body = t.fn.body
+    assert isinstance(body, Seq)
+    ite = body.body[0]
+    assert isinstance(ite, Ite)
+    assert ite.phis == ()
+    assert isinstance(ite.then_.body[0], Ret)
+    _agrees_with_python(
+        """
+        def f(x: float, y: float):
+            if x < 0:
+                return -x
+            return x + y
+        """,
+        [(-2, 3), (2, 3), (0, 0)],
+    )
+
+
+def test_returning_branch_contributes_no_merge_input():
+    from fractions import Fraction
+
+    program = """
+        def f(x: float, c: float):
+            if c > 0:
+                y = x + 1
+            else:
+                return x
+            return y
+    """
+    fn = translate(textwrap.dedent(program), filename="phi.py").fn
+    ite = fn.body.body[0]
+    assert isinstance(ite, Ite)
+    assert len(ite.phis) == 1
+    phi = ite.phis[0]
+    # The false branch returns, so its phi input is a dead but defined slot.
+    assert phi.lhs == phi.rhs
+    namespace: dict = {}
+    exec(textwrap.dedent(program), namespace)  # noqa: S102 - oracle
+    for args in [(Fraction(2), Fraction(1)), (Fraction(2), Fraction(0)), (Fraction(2), Fraction(-1))]:
+        expected = namespace["f"](*args)
+        assert to_option(run_exact(fn, args)) == (expected,)
+    _agrees_with_python(program, [(2, 1), (2, -1)])
+
+
+def test_returns_on_every_path_without_trailing_return():
+    from pontifex.emit import return_arity
+
+    fn = translate(
+        textwrap.dedent(
+            """
+            def f(x: float):
+                if x > 0:
+                    return 1
+                else:
+                    return 2
+            """
+        ),
+        filename="both.py",
+    ).fn
+    assert isinstance(fn.body, Seq)
+    assert isinstance(fn.body.body[0], Ite)
+    assert not isinstance(fn.body.body[-1], Ret)
+    assert return_arity(fn.body) == 1
+    _agrees_with_python(
+        """
+        def f(x: float):
+            if x > 0:
+                return 1
+            else:
+                return 2
+        """,
+        [(1,), (-1,), (0,)],
+    )
+
+
+def test_early_return_inside_a_loop():
+    program = """
+        def f(x: float, n: float):
+            if n <= 0:
+                return x
+            while n > 0:
+                if x > 8:
+                    return 8
+                x = x + 1
+                n = n - 1
+            return x
+    """
+    t = translate(textwrap.dedent(program), filename="loop.py")
+    loop = [s for s in stmts(t.fn.body) if isinstance(s, While)][0]
+    assert {p.slot for p in loop.phis} == {2, 3}  # n and x headers
+    assert any(isinstance(s, Ret) for s in stmts(loop.body))
+    _agrees_with_python(program, [(-2, 3), (2, 3), (9, 2), (1, 0), (0, 0)])
+
+
+def test_variable_assigned_only_on_returning_path_is_not_loop_carried():
+    program = """
+        def f(x: float):
+            while x < 3:
+                if x > 0:
+                    y = 1
+                    return y
+                x = x + 1
+            return x
+    """
+    fn = translate(textwrap.dedent(program), filename="unbound.py").fn
+    loop = [s for s in stmts(fn.body) if isinstance(s, While)][0]
+    assert len(loop.phis) == 1  # only x is carried; y never reaches the back edge
+    _agrees_with_python(program, [(2,), (-1,), (5,)])
+
+
+def test_unreachable_code_after_return_is_rejected():
+    with pytest.raises(UnsupportedError, match="unreachable"):
+        translate(
+            "def f(x: float):\n    return x\n    x = x + 1\n", filename="dead.py"
+        )
+
+
+def test_function_must_return_on_every_path():
+    with pytest.raises(FrontendError, match="does not return on every path"):
+        translate(
+            "def f(x: float):\n    if x > 0:\n        return x\n", filename="partial.py"
+        )

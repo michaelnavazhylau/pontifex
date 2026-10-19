@@ -49,7 +49,8 @@ inductive Stmt where
   | ite : Cond → List Stmt → List Stmt → Stmt
   /-- `while c: body`. -/
   | whil : Cond → List Stmt → Stmt
-  /-- Return a flat tuple of scalars (the only exit). -/
+  /-- Return a flat tuple of scalars.  May appear early: a block stops at the
+      first `ret`, matching the IR's `returned` outcome. -/
   | ret : List Expr → Stmt
   /-- `pass` and removed docstrings. -/
   | skip : Stmt

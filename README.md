@@ -55,7 +55,8 @@ fail the build.
 
 ### 1 · Python source
 A single function in the verified subset: scalar parameters, assignments,
-`if`/`else`, `while`, and a final tuple `return`.
+`if`/`else`, `while`, and tuple `return`s, including early exits from a branch
+or a loop body.
 
 ```python
 def step(x: float, v: float, a: float, dt: float):
@@ -77,6 +78,13 @@ header slots. Every assignment writes a fresh slot. Literals are exact
 rationals; Float literals retain their exact binary value *and* original bits.
 The canonical IR is also serialized as JSON, versioned by an exact schema
 number.
+
+An IR sequence stops at the first `returned` outcome, so a branch that always
+returns never reaches an `if` merge or a loop back edge. Merge slots come only
+from the branches that can still fall through; the returning side of a phi is a
+dead but defined slot. The frontend rejects unreachable statements after a
+definitely-returning statement, functions that can fall through without
+returning, and returns that disagree on arity.
 
 ### 4 · Lean code
 Two emission paths, both kernel-linked to the IR:
@@ -256,7 +264,8 @@ policy, the two-tier `FloatSpec` lemmas, and the computed-NaN allowlist.
 One function per module, scalar parameters, and:
 
 * statements: `x = e`, `x: T = e`, `x += e` (`-=`, `*=`, `/=`), `if`/`else`,
-  `while`, `pass`, a single final `return` of scalars;
+  `while`, `pass`, `return` of scalars (early returns allowed; every path must
+  return the same number of values);
 * expressions: names, int/float literals, `+ - * /`, `**` with an integer literal
   exponent in `[0, 8]`, unary `-`, `abs(x)`;
 * conditions: one comparison at a time, `and` / `or` / `not`, booleans.
@@ -270,9 +279,9 @@ access, subscripting, `min`/`max`, conditional expressions, or tuple unpacking.
 ## Validation
 
 ```text
-330 tests (frontend, interpreter, Lean proofs, corpora)
-21-program differential corpus · CPython / exact IR / binary64 IR / Lean oracle
-57 rejected programs with committed diagnostics
+348 tests (frontend, interpreter, Lean proofs, corpora)
+22-program differential corpus · CPython / exact IR / binary64 IR / Lean oracle
+59 rejected programs with committed diagnostics
 100,000 random binary64 patterns + IEEE edge cases → 269,724 comparisons,
 0 unallowlisted mismatches (451 explicitly counted computed-NaN exemptions)
 ```
@@ -328,9 +337,10 @@ scripts/                 generation, corpora, boundary checks, GIF renderer
 * two-tier binary64 component specifications;
 * build-time axiom, schema, rejection, corpus, and Float-boundary gates.
 
-**P3 — language growth:** multi-exit returns, state vectors/arrays with bounds
-failures, function calls (inline then summaries), an opacity lattice with a
-verified-path assertion, and Python integer/`min`/`max`/conditional semantics.
+**P3 — language growth:** multi-exit returns are implemented; next are state
+vectors/arrays with bounds failures, function calls (inline then summaries), an
+opacity lattice with a verified-path assertion, and Python
+integer/`min`/`max`/conditional semantics.
 
 **Research:** a recursively verified source semantics/frontend, native IEEE
 arithmetic proofs, rational-coefficient normalization, and a CFG-first IR with
