@@ -2,7 +2,9 @@
 
 > GitHub tracking: epic [#15](https://github.com/michaelnavazhylau/pyverif/issues/15);
 > P3 issues [#1–#6](https://github.com/michaelnavazhylau/pyverif/milestone/1);
-> P4 issues [#7–#14](https://github.com/michaelnavazhylau/pyverif/milestone/2).
+> P4 issues [#7–#14](https://github.com/michaelnavazhylau/pyverif/milestone/2);
+> tooling issue [#16](https://github.com/michaelnavazhylau/pyverif/issues/16)
+> ([milestone #3](https://github.com/michaelnavazhylau/pyverif/milestone/3)).
 
 Ordered by value per unit of risk, derived from the current trust report
 (`docs/TRUST.md`) and the Charon/Aeneas review (`docs/RELATED_WORK.md`).
