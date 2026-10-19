@@ -110,6 +110,16 @@ AUDIT_EXAMPLES = [
     "PyVerif.Poly.eval_normalize",
     "PyVerif.Poly.eval_insertTerm",
     "PyVerif.Poly.eval_foldr_mul",
+    "PyVerif.Examples.freeFall_step_position",
+    "PyVerif.Examples.freeFall_step_velocity",
+    "PyVerif.Examples.harmonicOscillator_step_velocity",
+    "PyVerif.FloatSpec.add_value",
+    "PyVerif.FloatSpec.add_bits",
+    "PyVerif.FloatSpec.mul_value",
+    "PyVerif.FloatSpec.div_value",
+    "PyVerif.FloatSpec.sub_bits",
+    "PyVerif.Binary64.neg_bits",
+    "PyVerif.Binary64.abs_bits",
 ]
 
 

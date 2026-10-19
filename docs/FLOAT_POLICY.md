@@ -25,6 +25,25 @@ with CPython's native arithmetic is **tested**, not a compiler/hardware proof.
   large Python integer coercions and integer-only subexpressions are still not
   a verified numeric-tower model (P3).
 
+## Two-tier representation and proved component specs
+
+`Binary64` stores a raw `bits : UInt64` tier and a native `value : Float` tier.
+`PyVerif/Core/FloatSpec.lean` proves, for every arithmetic operation, both
+faces of the result:
+
+```lean
+FloatSpec.add_value : (Ops.binary64.add x y).toFloat = x.toFloat + y.toFloat
+FloatSpec.add_bits  : (Ops.binary64.add x y).bits  = (x.toFloat + y.toFloat).toBits
+```
+
+and analogously for subtraction, multiplication, division, power, negation,
+and absolute value. `Binary64.neg_bits` is the sign-bit flip;
+`abs_bits` is the magnitude mask; `bits_roundtrip` is exact for wire values.
+
+These are *definitional* connections between the two tiers, **not** proofs that
+native `Float` operations round correctly. That is the remaining trusted
+boundary, exercised by the boundary corpus and documented below.
+
 ## Arithmetic and failures
 
 | Operation | Policy |

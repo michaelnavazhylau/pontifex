@@ -6,6 +6,8 @@ import PyVerif.Core.Semantics
 import PyVerif.Core.Refinement
 import PyVerif.Core.Poly
 import PyVerif.Core.PolyTactic
+import PyVerif.Core.FloatSpec
+import PyVerif.Step
 import PyVerif.Core.Source
 import PyVerif.Core.Lower
 import PyVerif.Json
@@ -16,4 +18,5 @@ import PyVerif.Generated
 import PyVerif.Examples.SpecLinks
 import PyVerif.Examples.ControlFlow
 import PyVerif.Examples.FailuresAndRefinement
+import PyVerif.Examples.StepDemo
 import PyVerif.Audit

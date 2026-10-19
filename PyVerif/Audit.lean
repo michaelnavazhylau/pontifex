@@ -43,3 +43,13 @@ import PyVerif.Audit.Command
 #audit_axioms PyVerif.Poly.eval_normalize
 #audit_axioms PyVerif.Poly.eval_insertTerm
 #audit_axioms PyVerif.Poly.eval_foldr_mul
+#audit_axioms PyVerif.Examples.freeFall_step_position
+#audit_axioms PyVerif.Examples.freeFall_step_velocity
+#audit_axioms PyVerif.Examples.harmonicOscillator_step_velocity
+#audit_axioms PyVerif.FloatSpec.add_value
+#audit_axioms PyVerif.FloatSpec.add_bits
+#audit_axioms PyVerif.FloatSpec.mul_value
+#audit_axioms PyVerif.FloatSpec.div_value
+#audit_axioms PyVerif.FloatSpec.sub_bits
+#audit_axioms PyVerif.Binary64.neg_bits
+#audit_axioms PyVerif.Binary64.abs_bits

@@ -58,6 +58,8 @@ by the differential tests.
 | General modified-energy invariant | **proved**, `symplecticStep_modifiedEnergy` via `rat_ring` |
 | Multi-step free-fall position formula | **proved**, `repeatStep_position_twice` |
 | Artifact config/schema stamped | `#guard` in every generated module; `generate.py` cross-checks Lean and Python versions |
+| Float bit/value component specs | `FloatSpec` lemmas, proved by `rfl` |
+| Generated-function component specs | `pyverif_step` demos, proved and audited |
 | Certificate axiom hygiene | `#audit_axioms` over every lowering/linkage theorem at build time |
 
 Two numeric readings are first class and never confused:
@@ -101,6 +103,8 @@ PyVerif/
   Core/Refinement.lean  fuel monotonicity and total/partial specs
   Core/Poly.lean        certified integer-coefficient polynomial normalizer
   Core/PolyTactic.lean  `rat_ring` reification and proof construction
+  Core/FloatSpec.lean   two-tier Float bit/value component lemmas
+  Step.lean             `pyverif_step` proof driver (explicit rule database)
   Core/Binary64.lean    raw-bit Float boundaries, including NaN payloads
   Core/Error.lean       checked arithmetic failures and stuck states
   Core/Ops.lean         Rat and Float numeric backends
@@ -123,6 +127,7 @@ python/tests/           unit, rejection, differential (incl. Lean oracle) tests
 TODO.md                 ordered implementation roadmap with acceptance criteria
 docs/TRUST.md           trust model, status matrix, open obligations
 docs/FLOAT_POLICY.md    bits, exceptions, NaNs, power, and native arithmetic policy
+docs/STEP_TACTIC.md     `pyverif_step` usage, rule database, and limits
 docs/RELATED_WORK.md    review of Charon/Aeneas and ranked lessons for us
 docs/related-work/      full reading reports for both upstream repositories
 ```
@@ -177,7 +182,7 @@ P0 and P1 are complete; see `TODO.md`. P1 uses a flat information order with
 bottom, not a lattice: failures and stuck states are stable observations.
 
 Next:
-1. **P2 (in progress):** a spec database/`pyverif_step` tactic and native Float
-   arithmetic proofs. The certified integer-coefficient normalizer (`rat_ring`)
-   is complete.
+1. **P2 complete:** certified integer-coefficient normalization (`rat_ring`),
+   the `pyverif_step` proof driver, and two-tier Float component specs.
+   Native IEEE arithmetic proofs remain future work.
 2. **P3:** multi-exit returns, arrays, function calls, and Python integer semantics.

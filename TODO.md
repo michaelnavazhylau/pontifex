@@ -175,7 +175,7 @@ explicit allowlist for unsupported operations.
 
 ---
 
-## P2 — proof power and usability
+## P2 — proof power and usability — ✅ complete
 
 ### ✅ T8. Verified reflective `Rat` normaliser (`rat_ring`) — **L**, medium/high risk
 
@@ -199,7 +199,7 @@ and `repeatStep_position_twice` is proved; both with no new axioms and covered b
 the build-time audit. Corruption tests reject false identities and rational
 literal coefficients (clear denominators first).
 
-### T9. Spec database and `pyverif_step` tactic — **M**, low risk
+### ✅ T9. Spec database and `pyverif_step` tactic — **M**, low risk
 
 **Why.** Aeneas's usability comes from ~180 `@[step]` lemmas and `step*?`.
 Our spec links are hand-written against generated definitions.
@@ -215,10 +215,11 @@ Our spec links are hand-written against generated definitions.
   acceptance test;
 - document when to use the tactic vs `rfl` linkage.
 
-**Acceptance.** Existing spec links shrink to a few tactic lines; a new corpus
-program’s spec is provable with the tactic without unfolding `exec`.
+**Acceptance.** ✅ `pyverif_step` has an explicit rule list, a trace variant,
+and worked component specs in `PyVerif/Examples/StepDemo.lean`; proofs no longer
+unfold `exec` by hand. Deeply nested loops still need invariants/fuel induction.
 
-### T10. Two-tier arithmetic lemmas for Float — **L**, high risk
+### ✅ T10. Two-tier arithmetic lemmas for Float — **L**, high risk
 
 **Why.** Aeneas proves `*_equiv` (value level) and `*_bv_spec` (bit level) per
 scalar op. Our generic `Ops` certificate proves identical structure, not IEEE
@@ -232,9 +233,9 @@ correctness.
   the specification of the oracle;
 - decide what to prove vs cite/assume about the hardware/Lean runtime.
 
-**Acceptance.** `Float` add/sub/mul specs proved for finite operands; the
-differential harness references the same statements; docs state precisely where
-the hardware/compiler enters the trusted base.
+**Acceptance.** ✅ `FloatSpec` proves bit/value component specs for add/sub/mul/
+div/pow/neg/abs by `rfl`; docs state precisely that native rounding remains the
+tested trust boundary. Full IEEE arithmetic proofs remain future work.
 
 ---
 
@@ -306,8 +307,9 @@ changes meaning between exact and float modes.
 1. ✅ **T1–T4** complete.
 2. ✅ **T5–T7** complete. Computed-NaN exemptions are explicit and counted;
    native arithmetic proofs and a full Python numeric tower remain open.
-4. **T8** (ring) to unlock the two remaining physics theorems; then **T9**
-   (tactics) to make the library pleasant.
+4. ✅ **T8–T10** complete: certified normalization, the step tactic, and
+   two-tier Float specs. Native IEEE proofs and rational-coefficient
+   normalization remain open.
 5. Grow the language only after the outcome model and corpus are stable:
    **T11 → T12 → T13 → T14 → T15**.
 

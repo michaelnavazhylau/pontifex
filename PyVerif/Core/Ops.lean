@@ -93,19 +93,19 @@ def Ops.float : Ops Float where
 def Ops.binary64 : Ops Binary64 where
   ofRat := fun q => .ofFloat (Ops.float.ofRat q)
   ofFloatBits := fun _ bits => .ofBits bits
-  isZero := fun x => x.toFloat == 0.0
-  pow := fun x n => (Ops.float.pow x.toFloat n).map Binary64.ofFloat
-  add := fun x y => .ofFloat (x.toFloat + y.toFloat)
-  sub := fun x y => .ofFloat (x.toFloat - y.toFloat)
-  mul := fun x y => .ofFloat (x.toFloat * y.toFloat)
-  div := fun x y => .ofFloat (x.toFloat / y.toFloat)
+  isZero := fun x => x.value == 0.0
+  pow := fun x n => (Ops.float.pow x.value n).map Binary64.ofFloat
+  add := fun x y => .ofFloat (x.value + y.value)
+  sub := fun x y => .ofFloat (x.value - y.value)
+  mul := fun x y => .ofFloat (x.value * y.value)
+  div := fun x y => .ofFloat (x.value / y.value)
   neg := Binary64.neg
   abs := Binary64.abs
-  lt := fun x y => x.toFloat < y.toFloat
-  le := fun x y => x.toFloat ≤ y.toFloat
-  gt := fun x y => x.toFloat > y.toFloat
-  ge := fun x y => x.toFloat ≥ y.toFloat
-  eq := fun x y => x.toFloat == y.toFloat
-  ne := fun x y => !(x.toFloat == y.toFloat)
+  lt := fun x y => x.value < y.value
+  le := fun x y => x.value ≤ y.value
+  gt := fun x y => x.value > y.value
+  ge := fun x y => x.value ≥ y.value
+  eq := fun x y => x.value == y.value
+  ne := fun x y => !(x.value == y.value)
 
 end PyVerif

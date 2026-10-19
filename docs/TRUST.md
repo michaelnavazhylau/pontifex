@@ -132,6 +132,8 @@ those are finite build-time tests, not universal correctness certificates.
 | Total→partial spec implication | Proved generically |
 | Rational division success iff divisor nonzero | Proved |
 | Raw binary64 representation round-trip | Proved by rfl |
+| Two-tier Float bit/value component specs | Proved by rfl (`FloatSpec`) |
+| `pyverif_step`-proved component specs | Proved and audited (`Examples/StepDemo`) |
 | Native Float/CPython arithmetic agreement | Tested at IEEE edges and random bits, not proved |
 | Python source↔IR equivalence | Tested only; still unproved |
 | Physics step/spec links and clamping spec | Proved for the modeled algorithms |
@@ -145,7 +147,9 @@ those are finite build-time tests, not universal correctness certificates.
   and JSON parsing are not proved correct with respect to Python.
 * Codegen certificates are per-program checks, not a universal compiler theorem.
 * Native machine-code semantics and Float arithmetic implementations remain
-  trusted/tested boundaries. IEEE arithmetic proofs are P2 work.
+  trusted/tested boundaries. `FloatSpec` proves how the bit and value tiers are
+  connected; it does not prove native rounding. IEEE arithmetic proofs remain
+  future work.
 * `rat_ring` is a certified integer-coefficient normalizer, not a general ring
   tactic: rational literal coefficients must be cleared, and non-polynomial
   functions (`abs`, division by variables) are treated as atoms. It proves the
