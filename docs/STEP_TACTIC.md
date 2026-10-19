@@ -30,12 +30,16 @@ extension in core Lean; extending the tactic means adding lemmas to that file
 and the explicit list in the macro.
 
 The rule list also covers the array value helpers (`evalScalars`, `indexVal`,
-`setVal`, `lenVal`, `Val.asScalar`). Note the tactic works best on *symbolic*
-fuel and direct definitions. A function with control flow or arrays is emitted
-through certified blocks, so goals about its public wrapper are normally proved
-by unfolding the wrapper, rewriting with `<fn>_compiled_link`, and then
-finishing structurally (or with `simp`); evaluating `exec` at a literal fuel is
-not a `simp` path.
+`setVal`, `lenVal`, `Val.asScalar`) and scalar selection (`min`/`max` and
+`Expr.select`). Note the tactic works best on *symbolic* fuel and direct
+definitions. A function with control flow, arrays, call-free selection, or
+fallible expression forms is emitted through certified blocks, so goals about
+its public wrapper are normally proved by unfolding the wrapper, rewriting with
+`<fn>_compiled_link`, and then finishing structurally (or with `simp`);
+evaluating `exec` at a literal fuel is not a `simp` path. In particular, the
+`Option` projection of a compiled wrapper (`vs[i]!`) is not currently a
+`pontifex_step` goal shape: state component lemmas over the direct definition,
+or use the linkage certificates.
 
 ## Diagnostics
 

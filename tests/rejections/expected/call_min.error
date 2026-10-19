@@ -1,2 +1,0 @@
-UnsupportedError
-tests/rejections/cases/call_min.py:2:12: unsupported call: use abs(x), len(xs), or a module-local helper as a complete assignment value or return; imports, math functions and min/max are not supported

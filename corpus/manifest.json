@@ -632,6 +632,36 @@
         {"kind": "rat", "min": -2, "max": 2},
         {"kind": "rat", "min": -2, "max": 2}
       ]
+    },
+    {
+      "file": "limited_step.py",
+      "function": "advance",
+      "fuel": 64,
+      "params": [
+        {"kind": "rat", "min": -8, "max": 8},
+        {"kind": "rat", "min": -4, "max": 4},
+        {"kind": "rat", "min": -4, "max": 4},
+        {"kind": "rat", "min": -2, "max": 2},
+        {"kind": "positive", "min": 1, "max": 8}
+      ]
+    },
+    {
+      "file": "safe_ratio.py",
+      "function": "ratio",
+      "fuel": 64,
+      "params": [
+        {"kind": "rat", "min": -8, "max": 8},
+        {"kind": "rat", "min": -2, "max": 2}
+      ]
+    },
+    {
+      "file": "selection_loop.py",
+      "function": "advance",
+      "fuel": 128,
+      "params": [
+        {"kind": "rat", "min": -8, "max": 8},
+        {"kind": "nat", "max": 6}
+      ]
     }
   ]
 }

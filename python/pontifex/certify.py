@@ -31,6 +31,7 @@ from .ir import (
     Pow,
     Ret,
     Seq,
+    Select,
     Set,
     Skip,
     Slot,
@@ -66,9 +67,18 @@ def emit_certified(fn: Fn) -> str:
             operation = f"return Val.scalar (ops.{e.op} x y)"
             if e.op == "div":
                 operation = "return Val.scalar (← checkedDiv ops x y)"
+            elif e.op in {"min", "max"}:
+                cmp = "lt" if e.op == "min" else "gt"
+                operation = f"return Val.scalar (if ops.{cmp} y x then y else x)"
             return (
                 f"(do let va ← {value(e.lhs)}; let x ← Val.asScalar va; "
                 f"let vb ← {value(e.rhs)}; let y ← Val.asScalar vb; {operation})"
+            )
+        if isinstance(e, Select):
+            return (
+                f"(do let branch ← {cond(e.cond)}; "
+                f"let v ← (if branch then {value(e.then_)} else {value(e.else_)}); "
+                f"return Val.scalar (← Val.asScalar v))"
             )
         if isinstance(e, Un):
             return (

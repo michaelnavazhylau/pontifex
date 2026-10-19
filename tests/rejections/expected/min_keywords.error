@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/min_keywords.py:2:12: min requires exactly two positional scalar arguments (no iterable form, keywords or unpacking)

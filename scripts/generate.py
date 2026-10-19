@@ -42,6 +42,7 @@ EXAMPLES = [
     "early_exit",
     "array_step",
     "call_step",
+    "limited_step",
 ]
 
 # Multi-function modules must select the public entry point explicitly.

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/min_shadow.py:2:12: callable 'min' is shadowed by a local variable

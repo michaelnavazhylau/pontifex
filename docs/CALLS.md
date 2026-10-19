@@ -38,15 +38,18 @@ def advance(x, v, a, dt):
   before the assignment. Such calls are rejected rather than treated as globals.
   Duplicate module function definitions are also rejected.
 
-Deferred: calls inside arithmetic/conditions/arguments, keyword/starred calls,
+Scalar `min`/`max` and conditional expressions are supported inside straight-line
+helpers and scalar call arguments; see [SELECTION.md](SELECTION.md).
+
+Deferred: user-helper calls inside arithmetic/conditions/arguments, keyword/starred calls,
 ignored-result calls, tuple unpacking/results, callee branches/loops/early
 returns, array arguments/results/locals in helpers, recursion, external calls,
 and summary/opaque calls. Unsupported shapes fail with located diagnostics.
 
 ## Expansion and certificates
 
-There is **no new runtime call node or JSON schema**: schema 3 still contains
-only the existing IR. At each call site Python's inliner:
+Calls add **no runtime call node or JSON schema change**: they landed on schema
+3; the current schema is 4 after T15a's scalar-selection extension. At each call site Python's inliner:
 
 1. allocates fresh slots for the whole callee frame;
 2. evaluates arguments once, left to right, into the parameter slots;

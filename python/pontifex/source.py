@@ -2,7 +2,9 @@
 
 The frontend validates the supported subset; this module performs the *purely
 syntactic* desugaring (augmented assignment, explicit `**`, `abs`, docstring and
-`pass` removal) and emits the core AST as a Lean value.
+`pass` removal) and emits the core AST as a Lean value. Scalar min/max remain
+explicit binary operations and conditional expressions retain their condition
+and branches; neither duplicates operand evaluation.
 
 Variable names are replaced by integer ids assigned in **sorted name order**, so
 that "sorted assigned names" in the SSA lowering becomes "sorted ids". The Lean
@@ -94,6 +96,13 @@ class Set(SExpr):
     array: SExpr
     index: SExpr
     value: SExpr
+
+
+@dataclass(frozen=True)
+class Select(SExpr):
+    cond: SCond
+    then_: SExpr
+    else_: SExpr
 
 
 class SCond:
@@ -194,7 +203,7 @@ class _NameCollector(ast.NodeVisitor):
             self.visit(node.value)
 
     def visit_Call(self, node: ast.Call) -> None:
-        # The callee is a builtin (abs), not a program variable.
+        # A builtin or module-local helper name is not a program variable.
         for argument in node.args:
             self.visit(argument)
         for keyword in node.keywords:
@@ -277,7 +286,18 @@ class _Desugar:
                 and not node.keywords
             ):
                 return Len(self.expr(node.args[0]))
-            raise self.err(node, "only abs(x) and len(xs) calls are supported")
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id in {"min", "max"}
+                and len(node.args) == 2
+                and not node.keywords
+            ):
+                return Bin(node.func.id, self.expr(node.args[0]), self.expr(node.args[1]))
+            raise self.err(
+                node, "only abs(x), len(xs), min(a, b) and max(a, b) expression calls are supported"
+            )
+        if isinstance(node, ast.IfExp):
+            return Select(self.cond(node.test), self.expr(node.body), self.expr(node.orelse))
         if isinstance(node, ast.Subscript):
             if isinstance(node.slice, ast.Slice):
                 raise self.err(node, "slices are not supported")
@@ -416,6 +436,8 @@ def _expr(e: SExpr) -> str:
         return f"(.bin .{e.op} {_expr(e.lhs)} {_expr(e.rhs)})"
     if isinstance(e, Un):
         return f"(.un .{e.op} {_expr(e.arg)})"
+    if isinstance(e, Select):
+        return f"(.select {_cond(e.cond)} {_expr(e.then_)} {_expr(e.else_)})"
     if isinstance(e, Index):
         return f"(.index {_expr(e.array)} {_expr(e.index)})"
     if isinstance(e, Len):

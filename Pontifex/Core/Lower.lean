@@ -77,6 +77,8 @@ def lowerExpr (st : LowerState) : Expr → Except String _root_.Pontifex.Expr
       return .arrayLit (← lowerExprs st es)
   | .set a i v => do
       return .set (← lowerExpr st a) (← lowerExpr st i) (← lowerExpr st v)
+  | .select c t e => do
+      return .select (← lowerCond st c) (← lowerExpr st t) (← lowerExpr st e)
 
 /-- Lower the elements of an array literal.
 
@@ -91,9 +93,7 @@ def lowerExprs (st : LowerState) :
       let rest' ← lowerExprs st rest
       return e' :: rest'
 
-end
-
-/-- Condition lowering. -/
+/-- Condition lowering (mutual with expressions for lazy selection). -/
 def lowerCond (st : LowerState) : Cond → Except String _root_.Pontifex.Cond
   | .cmp op a b => do
       return .cmp op (← lowerExpr st a) (← lowerExpr st b)
@@ -104,6 +104,8 @@ def lowerCond (st : LowerState) : Cond → Except String _root_.Pontifex.Cond
   | .not a => do
       return .not (← lowerCond st a)
   | .const b => .ok (.const b)
+
+end
 
 mutual
 

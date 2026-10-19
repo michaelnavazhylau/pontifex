@@ -57,11 +57,18 @@ error against an IR bounds failure. Out-of-range integer indices are fine and
 are compared as the shared `indexOutOfBounds` failure (`vector_step.py`,
 `array_read_bounds.py`, `array_store_bounds.py`).
 
+Scalar-selection programs (`limited_step.py`, `safe_ratio.py`,
+`selection_loop.py`) cover eager two-argument `min`/`max` and lazy conditional
+expressions, including protected division and selection within control flow.
+See [`docs/SELECTION.md`](../docs/SELECTION.md). NaN/signed-zero/tie selection
+is covered separately by the bit-exact boundary corpus below.
+
 ## Binary64 boundary corpus
 
 `make float-boundaries` runs 100,000 fixed-seed random bit patterns and explicit
 IEEE edge cases through CPython, Python IR, and Lean. Raw wire transport,
-literals, and sign operations are bit-exact, including NaN payloads. Arithmetic
+literals, sign operations, and `min`/`max`/conditional operand selection are
+bit-exact, including NaN payloads. Arithmetic
 may canonicalize computed NaNs: `float_allowlist.json` permits payload/sign
 differences only when both results are NaN; finite differences and failures are
 never exempt. See `docs/FLOAT_POLICY.md` for the precise tested/proved policy.

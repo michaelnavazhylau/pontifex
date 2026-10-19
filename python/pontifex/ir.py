@@ -34,7 +34,7 @@ Json = dict[str, Any]
 # Operators
 # ---------------------------------------------------------------------------
 
-BIN_OPS = ("add", "sub", "mul", "div")
+BIN_OPS = ("add", "sub", "mul", "div", "min", "max")
 CMP_OPS = ("lt", "le", "gt", "ge", "eq", "ne")
 UN_OPS = ("neg", "abs")
 
@@ -172,6 +172,23 @@ class Set(Expr):
             "a": self.array.to_json(),
             "i": self.index.to_json(),
             "v": self.value.to_json(),
+        }
+
+
+@dataclass(frozen=True)
+class Select(Expr):
+    """Scalar conditional expression; only the selected branch is evaluated."""
+
+    cond: Cond
+    then_: Expr
+    else_: Expr
+
+    def to_json(self) -> Json:
+        return {
+            "k": "select",
+            "c": self.cond.to_json(),
+            "t": self.then_.to_json(),
+            "e": self.else_.to_json(),
         }
 
 
@@ -367,6 +384,8 @@ def _expr_of_json(j: Json) -> Expr:
         return Bin(j["op"], _expr_of_json(j["l"]), _expr_of_json(j["r"]))
     if k == "un":
         return Un(j["op"], _expr_of_json(j["e"]))
+    if k == "select":
+        return Select(_cond_of_json(j["c"]), _expr_of_json(j["t"]), _expr_of_json(j["e"]))
     if k == "index":
         return Index(_expr_of_json(j["a"]), _expr_of_json(j["i"]))
     if k == "len":
@@ -461,6 +480,8 @@ def slots_read(e: Expr | Cond) -> set[int]:
         return out
     if isinstance(e, Set):
         return slots_read(e.array) | slots_read(e.index) | slots_read(e.value)
+    if isinstance(e, Select):
+        return slots_read(e.cond) | slots_read(e.then_) | slots_read(e.else_)
     if isinstance(e, Cmp):
         return slots_read(e.lhs) | slots_read(e.rhs)
     if isinstance(e, (And, Or)):

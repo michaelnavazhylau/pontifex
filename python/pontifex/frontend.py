@@ -31,7 +31,8 @@ Documented subset (v0)
 * statements: simple/annotated/augmented assignment, ``if``/``else``,
   ``while``, ``return`` (early exits allowed; every path must return), ``pass``;
 * expressions: names, int/float literals, ``+ - * /``, ``**`` with a small
-  non-negative integer exponent, unary minus, ``abs(x)``;
+  non-negative integer exponent, unary minus, ``abs(x)``, eager two-argument
+  ``min``/``max``, and lazy scalar conditional expressions;
 * conditions: comparisons (one operator, not chained), ``and``/``or``/``not``,
   boolean literals;
 * arrays: one-dimensional list literals, indexing, functional subscript stores,
@@ -42,8 +43,9 @@ Documented subset (v0)
 
 Explicitly rejected: imports, classes, ``for``, ``break``/``continue``,
 ``try``/``except``, ``with``, ``assert``, ``del``, lambdas, comprehensions,
-attribute access, dicts/tuples outside ``return``, ``min``/``max``, conditional
-expressions, chained comparisons, recursion, and other call shapes.
+attribute access, dicts/tuples outside ``return``, iterable/variadic ``min``/``max``,
+array-valued conditionals, scalar truthiness, chained comparisons, recursion,
+and other call shapes.
 """
 
 from __future__ import annotations
@@ -75,6 +77,7 @@ from .ir import (
     Pow,
     Ret,
     Seq,
+    Select,
     Set,
     Skip,
     Slot,
@@ -298,6 +301,18 @@ class _Lowerer:
                         "user calls are supported only as a complete assignment value or return; "
                         "calls nested in expressions, conditions or arguments are deferred",
                     )
+            if isinstance(node.func, ast.Name) and node.func.id in {"min", "max"}:
+                if (
+                    len(node.args) != 2
+                    or node.keywords
+                    or any(isinstance(a, ast.Starred) for a in node.args)
+                ):
+                    raise self.err(
+                        node,
+                        f"{node.func.id} requires exactly two positional scalar arguments "
+                        "(no iterable form, keywords or unpacking)",
+                    )
+                return Bin(node.func.id, self.expr(node.args[0]), self.expr(node.args[1]))
             if (
                 isinstance(node.func, ast.Name)
                 and node.func.id == "abs"
@@ -314,8 +329,8 @@ class _Lowerer:
                 return Len(self.array_expr(node.args[0]))
             raise self.err(
                 node,
-                "unsupported call: use abs(x), len(xs), or a module-local helper as a "
-                "complete assignment value or return; imports, math functions and min/max are not supported",
+                "unsupported call: use abs(x), len(xs), min(a, b), max(a, b), or a module-local helper "
+                "as a complete assignment value or return; imports and external calls are not supported",
             )
         if isinstance(node, ast.Attribute):
             raise self.err(
@@ -340,7 +355,7 @@ class _Lowerer:
                 "(return a flat tuple of scalars instead)",
             )
         if isinstance(node, ast.IfExp):
-            raise self.err(node, "conditional expressions are not supported")
+            return Select(self.cond(node.test), self.expr(node.body), self.expr(node.orelse))
         if isinstance(node, ast.Compare):
             raise self.err(node, "comparison produces a boolean and cannot be used as a scalar")
         if isinstance(node, ast.BoolOp):
