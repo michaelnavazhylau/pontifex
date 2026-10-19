@@ -78,6 +78,42 @@ PROGRAMS = {
                 pass
             return 0.1 + 0.2
     """,
+    "early_returns": """
+        def f(x, n):
+            if n <= 0:
+                return x
+            while n > 0:
+                if x > 8:
+                    return 8
+                x = x + 1
+                n = n - 1
+            return x
+    """,
+    "early_return_phi": """
+        def f(x, c):
+            if c > 0:
+                y = x + 1
+            else:
+                return x
+            return y
+    """,
+    "loop_variable_on_returning_path": """
+        def f(x):
+            y = 0
+            while x > 0:
+                if x > 5:
+                    y = 1
+                    return y
+                x = x - 1
+            return y
+    """,
+    "both_branches_return": """
+        def f(x, y):
+            if x > y:
+                return x
+            else:
+                return y
+    """,
     "conditions": """
         def f(x, y):
             while x < 4 and not (x == y):

@@ -89,10 +89,12 @@ first-class control flow. `LLBC` is reconstructed by a single pass
 (`transform/control_flow/ullbc_to_llbc.rs`), with an explicit failure mode
 (`struct Irreducible`) and a documented `--ullbc` fallback.
 
-*Why it matters for us:* our generator supports only structured `if`/`while`
-with a single exit. A canonical unstructured form would handle multi-exit
-programs and make "structuring" a separately checkable view. It also explains
-why their loop translation is total: the CFG is the authority.
+*Why it matters for us:* our generator emits only structured `if`/`while`.
+Multi-exit `return` now lowers into that same structured form (a returning
+branch simply never reaches its merge), so the remaining motivation for a
+canonical unstructured form is `break`/`continue` and irreducible control flow,
+plus making "structuring" a separately checkable view. It also explains why
+their loop translation is total: the CFG is the authority.
 
 ### Functionalization by abstract interpretation (Aeneas)
 
@@ -241,13 +243,14 @@ plus a `#guard` in generated files.
 
 Charon's ULLBC authority and one explicitly fallible structuring pass is a
 proven design for handling early returns, `break`, and irreducible control flow.
-Our single-exit restriction is the largest *language* limitation left. Either
-lower to a CFG and reconstruct structured forms (harder), or add a restricted
-multi-exit `return` with a proved lowering to the existing structured IR
-(cheaper).
+We took the cheaper option for returns: multi-exit `return` lowers to the
+existing structured IR, with the lowering certificate as the acceptance
+criterion (T11, done). The single-exit *IR* is still the limiting assumption for
+`break`/`continue`; lowering to a CFG and reconstructing structured forms
+remains the harder follow-up.
 
-**First step:** a design spike on `return` inside branches, with the lowering
-certificate as the acceptance criterion.
+**First step:** a design spike on `break`/`continue`, reusing the T11 merge rule
+for the fall-through paths.
 
 ### 5. Add an opacity/annotation lattice for gradual adoption
 

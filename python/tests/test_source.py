@@ -106,3 +106,17 @@ def test_control_flow_shape_is_preserved():
 def test_abs_and_unary_minus_desugar_to_un():
     sfn, _ = _source("def f(x):\n    return abs(-x)\n")
     assert sfn.body[0].exprs[0] == Un("abs", Un("neg", Var(0)))
+
+
+def test_returns_are_preserved_inside_branches():
+    sfn, _ = _source(
+        """
+        def f(x):
+            if x > 0:
+                return x
+            return -x
+        """
+    )
+    assert isinstance(sfn.body[0], Ite)
+    assert isinstance(sfn.body[0].then_[0], Ret)
+    assert isinstance(sfn.body[1], Ret)
