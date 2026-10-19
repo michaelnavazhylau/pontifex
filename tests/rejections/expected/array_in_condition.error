@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/array_in_condition.py:3:8: 'xs' is an array and cannot be used where a scalar is expected (index it, take its length, or return a scalar)

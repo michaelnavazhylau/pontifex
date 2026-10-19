@@ -47,6 +47,14 @@ input. Source exceptions map to the same `Failed` constructors as both IR
 interpreters. Use `positive` when a program needs a nonzero divisor for its
 algorithm rather than to hide failures.
 
+Array programs are welcome. Keep index expressions integer-valued in CPython
+(loop counters and literals, not `float`/`Fraction` parameters): Python rejects
+non-integer list indices with `TypeError` while the IR reads an integral scalar
+as an index, so a parameter-driven fractional index would compare a Python type
+error against an IR bounds failure. Out-of-range integer indices are fine and
+are compared as the shared `indexOutOfBounds` failure (`vector_step.py`,
+`array_read_bounds.py`, `array_store_bounds.py`).
+
 ## Binary64 boundary corpus
 
 `make float-boundaries` runs 100,000 fixed-seed random bit patterns and explicit

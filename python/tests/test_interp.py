@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import textwrap
 from fractions import Fraction
 
 import pytest
@@ -18,6 +19,7 @@ from pontifex.interp import (
     run_float,
     to_option,
 )
+from pontifex.frontend import translate
 from pontifex.pipeline import run_python_source
 
 from conftest import example_source, translate_example
@@ -85,3 +87,53 @@ def test_wire_formats():
     assert rat_string(Fraction(-6, 4)) == "-3/2"
     assert float_bits(1.0) == "0x3ff0000000000000"
     assert float_bits(-0.0) != float_bits(0.0)
+
+
+def test_array_read_update_and_len():
+    program = textwrap.dedent(
+        """
+        def f(i, dt):
+            xs = [1.0, 2.0, 3.0]
+            xs[i] = xs[i] + dt
+            return xs[0], xs[1], xs[2], len(xs)
+        """
+    )
+    fn = translate(program, filename="arr.py").fn
+    out = run_exact(fn, [Fraction(1), Fraction(1, 2)])
+    assert out.values == (Fraction(1), Fraction(5, 2), Fraction(3), Fraction(3))
+    assert run_float(fn, [1, 0.5]).values == (1.0, 2.5, 3.0, 3.0)
+
+
+def test_array_updates_are_functional_not_aliased():
+    # The update writes a fresh slot; the slot bound before the store is
+    # unchanged in the fell-through environment.
+    program = textwrap.dedent(
+        """
+        def f(v):
+            xs = [1.0, 2.0]
+            xs[0] = v
+            return xs[0]
+        """
+    )
+    fn = translate(program, filename="alias.py").fn
+    from pontifex.interp import Interpreter
+
+    interp = Interpreter()
+    before = interp.exec(fn.body.body[0], {0: Fraction(7)}, fuel=16)
+    assert isinstance(before, FellThrough)
+    after = interp.exec(fn.body.body[1], before.env, fuel=16)
+    assert isinstance(after, FellThrough)
+    assert before.env != after.env
+    assert before.env[1] == [Fraction(1), Fraction(2)]  # slot 1 is the literal
+    assert after.env[2] == [Fraction(7), Fraction(2)]  # slot 2 is the update
+
+
+def test_array_index_failures():
+    fn = translate(
+        "def f(i):\n    xs = [1.0, 2.0]\n    return xs[i]\n", filename="bounds.py"
+    ).fn
+    assert run_exact(fn, [Fraction(0)]).values == (Fraction(1),)
+    for index in (Fraction(2), Fraction(-1), Fraction(1, 2)):
+        outcome = run_exact(fn, [index])
+        assert isinstance(outcome, Failed)
+        assert outcome.error == "indexOutOfBounds"

@@ -41,6 +41,7 @@ no `sorry`, no `native_decide` in certificates.
 | Symplectic Euler preserves its modified energy | **Proved** (`symplecticStep_modifiedEnergy`) |
 | Free-fall position after `n` steps | **Proved** (`repeatStep_position_twice`) |
 | Translation of Python source to the core AST | **Trusted + tested**, not proved |
+| Array reads, updates, and `len` | **Kernel-checked** per program; bad/out-of-range index is `failed .indexOutOfBounds` |
 | Native binary64/CPU arithmetic | **Tested bit-for-bit**, not proved |
 | Native Python numeric tower and exceptions | **Out of scope** |
 
@@ -85,6 +86,12 @@ from the branches that can still fall through; the returning side of a phi is a
 dead but defined slot. The frontend rejects unreachable statements after a
 definitely-returning statement, functions that can fall through without
 returning, and returns that disagree on arity.
+
+Slots hold tagged values (`Val α = .scalar α | .array (List α)`), so an array
+flows through the same phis and loop headers as a scalar. Array length is
+intrinsic; `xs[i]` and `xs[i] = v` are bounds-checked, and the update is a
+functional expression assigned to a fresh slot (no aliasing, no separate array
+environment).
 
 ### 4 · Lean code
 Two emission paths, both kernel-linked to the IR:
@@ -268,20 +275,26 @@ One function per module, scalar parameters, and:
   return the same number of values);
 * expressions: names, int/float literals, `+ - * /`, `**` with an integer literal
   exponent in `[0, 8]`, unary `-`, `abs(x)`;
-* conditions: one comparison at a time, `and` / `or` / `not`, booleans.
+* conditions: one comparison at a time, `and` / `or` / `not`, booleans;
+* arrays: one-dimensional list literals `[a, b, c]`, bounds-checked reads
+  `xs[i]`, functional updates `xs[i] = v`, and `len(xs)`. Arrays are values in
+  tagged slots: an update writes a fresh array slot, so there is no aliasing.
+  Array parameters, array returns, nested arrays, and augmented subscript
+  assignment are rejected. A bad index (fractional, negative) and an
+  out-of-range integer index both produce `failed .indexOutOfBounds`.
 
 Everything else is rejected with a located, snapshotted diagnostic — no imports,
 `for`, `break`/`continue`, `try`, `with`, lambdas, comprehensions, attribute
-access, subscripting, `min`/`max`, conditional expressions, or tuple unpacking.
+access, `min`/`max`, conditional expressions, or tuple unpacking.
 
 ---
 
 ## Validation
 
 ```text
-348 tests (frontend, interpreter, Lean proofs, corpora)
-22-program differential corpus · CPython / exact IR / binary64 IR / Lean oracle
-59 rejected programs with committed diagnostics
+373 tests (frontend, interpreter, Lean proofs, corpora)
+25-program differential corpus · CPython / exact IR / binary64 IR / Lean oracle
+65 rejected programs with committed diagnostics
 100,000 random binary64 patterns + IEEE edge cases → 269,724 comparisons,
 0 unallowlisted mismatches (451 explicitly counted computed-NaN exemptions)
 ```
@@ -337,9 +350,9 @@ scripts/                 generation, corpora, boundary checks, GIF renderer
 * two-tier binary64 component specifications;
 * build-time axiom, schema, rejection, corpus, and Float-boundary gates.
 
-**P3 — language growth:** multi-exit returns are implemented; next are state
-vectors/arrays with bounds failures, function calls (inline then summaries), an
-opacity lattice with a verified-path assertion, and Python
+**P3 — language growth:** multi-exit returns and one-dimensional state vectors
+with bounds failures are implemented; next are function calls (inline then
+summaries), an opacity lattice with a verified-path assertion, and Python
 integer/`min`/`max`/conditional semantics.
 
 **Research:** a recursively verified source semantics/frontend, native IEEE

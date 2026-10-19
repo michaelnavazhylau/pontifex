@@ -266,13 +266,25 @@ a corpus program, and the rejection snapshots cover the new shapes. `Seq`
 semantics and the emitted-code certificates were already correct and are
 unchanged.
 
-### T12. State vectors / arrays — **L**
+### ✅ T12. State vectors / arrays — **L**, medium risk (schema 3)
 
-Model as `List Rat` with an explicit length and bounds checks producing
-`failed .indexOutOfBounds` (Aeneas's `Slice`/`Vec` discipline). Requires T6.
+Implemented as tagged slot values: `Val α = .scalar α | .array (List α)` in the
+existing environment, so arrays flow through the same phis and loop headers as
+scalars and `Outcome`/`exec`/`Fn.run`/`exec_mono` keep their signatures. Length
+is intrinsic to the `List`. Surface syntax is one-dimensional list literals,
+`xs[i]` reads, `xs[i] = v` functional updates, and `len(xs)`. Both the read and
+the update are bounds-checked; a fractional, negative, non-finite, or
+out-of-range index is `failed .indexOutOfBounds`. The update is an `Expr.set`
+assigned to a fresh slot, which keeps the IR alias-free (no array parameters,
+array returns, nested arrays, or array copies). The frontend tracks static
+scalar/array kinds through branches and loops and rejects kind mismatches.
 
-**Acceptance.** A translated vector integrator with in-bounds accesses proved
-safe; out-of-bounds produces the defined failure outcome.
+**Acceptance.** ✅ `examples/array_step.py` (kernel-checked lowering, compiled
+link, axiom audit), three kernel-checked certificate programs (vector loop,
+array phi, bounds failure), three corpus programs (including out-of-bounds in
+both read and store positions), rejection snapshots for aliasing, nested arrays,
+kind changes, and scalar/array confusion. `exec_mono` and the refinement layer
+required no proof changes beyond the value-tag plumbing.
 
 ### T13. Function calls — **L**
 
@@ -326,8 +338,8 @@ changes meaning between exact and float modes.
 4. ✅ **T8–T10** complete: certified normalization, the step tactic, and
    two-tier Float specs. Native IEEE proofs and rational-coefficient
    normalization remain open.
-5. ✅ **T11** complete. Grow the language only after the outcome model and
-   corpus are stable: **T12 → T13 → T14 → T15**.
+5. ✅ **T11–T12** complete. Grow the language only after the outcome model and
+   corpus are stable: **T13 → T14 → T15**.
 
 ## Explicit non-goals (for now)
 

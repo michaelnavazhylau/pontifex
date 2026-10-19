@@ -26,6 +26,11 @@ structure Ops (α : Type) where
   ofRat : Rat → α
   /-- Float literal carries both its exact rational value and its original bits. -/
   ofFloatBits : Rat → UInt64 → α
+  /-- Embed a natural number (array lengths). -/
+  ofNat : Nat → α
+  /-- Convert a scalar to an array index.  Only non-negative integers convert;
+      anything else is rejected and becomes `failed .indexOutOfBounds`. -/
+  toIndex : α → Option Nat
   isZero : α → Bool
   pow : α → Nat → Eval α
   add : α → α → α
@@ -45,6 +50,8 @@ structure Ops (α : Type) where
 def Ops.rat : Ops Rat where
   ofRat := id
   ofFloatBits := fun q _ => q
+  ofNat := fun n => (n : Rat)
+  toIndex := fun x => if x.den == 1 && 0 ≤ x.num then some x.num.toNat else none
   isZero := fun x => decide (x = 0)
   pow := fun x n => .ok (x ^ n)
   add := (· + ·)
@@ -70,6 +77,14 @@ def Ops.rat : Ops Rat where
 def Ops.float : Ops Float where
   ofRat := fun q => Float.ofInt q.num / Float.ofNat q.den
   ofFloatBits := fun _ bits => Float.ofBits bits
+  ofNat := Float.ofNat
+  -- Integral non-negative binary64 values below 2^53 convert exactly.  Larger
+  -- or fractional indices are rejected; the native conversion is tested, not
+  -- proved (see docs/FLOAT_POLICY.md).
+  toIndex := fun x =>
+    if 0.0 ≤ x && x ≤ 9007199254740992.0 && x == Float.floor x then
+      some (Float.toUInt64 x).toNat
+    else none
   isZero := fun x => x == 0.0
   pow := fun x n =>
     let y := Float.pow x (Float.ofNat n)
@@ -93,6 +108,8 @@ def Ops.float : Ops Float where
 def Ops.binary64 : Ops Binary64 where
   ofRat := fun q => .ofFloat (Ops.float.ofRat q)
   ofFloatBits := fun _ bits => .ofBits bits
+  ofNat := fun n => .ofFloat (Float.ofNat n)
+  toIndex := fun x => Ops.float.toIndex x.value
   isZero := fun x => x.value == 0.0
   pow := fun x n => (Ops.float.pow x.value n).map Binary64.ofFloat
   add := fun x y => .ofFloat (x.value + y.value)

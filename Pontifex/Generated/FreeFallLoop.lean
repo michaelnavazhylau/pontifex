@@ -18,7 +18,7 @@ open Pontifex
 
 /-- Semantic configuration this artifact was generated under. -/
 def pontifexConfig : Config :=
-  { irVersion := 2
+  { irVersion := 3
     fuelPolicy := .allFuel
     numericMode := .exactRat }
 
@@ -53,7 +53,7 @@ theorem simulate_lowering :
 def simulate_block1 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (.ok (ops.ofRat (0 : Rat))) (fun x => .fellThrough (env.set 5 x))
+    Outcome.fromEval ((.ok (Val.scalar (ops.ofRat (0 : Rat)))) : Eval (Val α)) (fun x => .fellThrough (env.set 5 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block1_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -97,7 +97,7 @@ theorem simulate_block8_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block12 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 7); let y ← (do let x ← (readSlot env 3); let y ← (readSlot env 4); return ops.mul x y); return ops.add x y) (fun x => .fellThrough (env.set 9 x))
+    Outcome.fromEval (do let va ← (readSlot env 7); let x ← Val.asScalar va; let vb ← (do let va ← (readSlot env 3); let x ← Val.asScalar va; let vb ← (readSlot env 4); let y ← Val.asScalar vb; return Val.scalar (ops.mul x y)); let y ← Val.asScalar vb; return Val.scalar (ops.add x y)) (fun x => .fellThrough (env.set 9 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block12_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -108,7 +108,7 @@ theorem simulate_block12_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block14 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 8); let y ← (do let x ← (readSlot env 9); let y ← (readSlot env 4); return ops.mul x y); return ops.add x y) (fun x => .fellThrough (env.set 10 x))
+    Outcome.fromEval (do let va ← (readSlot env 8); let x ← Val.asScalar va; let vb ← (do let va ← (readSlot env 9); let x ← Val.asScalar va; let vb ← (readSlot env 4); let y ← Val.asScalar vb; return Val.scalar (ops.mul x y)); let y ← Val.asScalar vb; return Val.scalar (ops.add x y)) (fun x => .fellThrough (env.set 10 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block14_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -119,7 +119,7 @@ theorem simulate_block14_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block16 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 6); let y ← (readSlot env 4); return ops.add x y) (fun x => .fellThrough (env.set 11 x))
+    Outcome.fromEval (do let va ← (readSlot env 6); let x ← Val.asScalar va; let vb ← (readSlot env 4); let y ← Val.asScalar vb; return Val.scalar (ops.add x y)) (fun x => .fellThrough (env.set 11 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block16_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -174,7 +174,7 @@ theorem simulate_block11_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block10 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 6); let y ← (readSlot env 0); return ops.lt x y) fun branch =>
+    Outcome.fromEval (do let x ← ((match (readSlot env 6) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α); let y ← ((match (readSlot env 0) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α); return ops.lt x y) fun branch =>
       if branch then
         (simulate_block11 ops fuel env).bindEnv fun next =>
           Outcome.fromEval ([(6, 11), (7, 9), (8, 10)].foldlM (fun acc (target, origin) => do let x ← readSlot next origin; return acc.set target x) next) fun header =>
@@ -248,7 +248,7 @@ theorem simulate_block3_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block20 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval ([(readSlot env 8), (readSlot env 7)].mapM id) Outcome.returned
+    Outcome.fromEval ([((match (readSlot env 8) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α), ((match (readSlot env 7) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α)].mapM id) Outcome.returned
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block20_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -301,12 +301,12 @@ theorem simulate_block0_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 
 /-- The compiled function preserves full outcomes, including exhaustion. -/
 def simulateCompiled (ops : Ops α) [Inhabited α] (fuel : Nat) (args : List α) :
-    Outcome α := simulate_block0 ops fuel (args.map some)
+    Outcome α := simulate_block0 ops fuel (args.map (fun x => some (Val.scalar x)))
 
 theorem simulate_compiled_link (ops : Ops α) [Inhabited α]
     (fuel : Nat) (args : List α) :
     simulateCompiled ops fuel args = Fn.run ops simulateIR fuel args := by
-  exact simulate_block0_correct ops fuel (args.map some)
+  exact simulate_block0_correct ops fuel (args.map (fun x => some (Val.scalar x)))
 
 /-- Public exact-rational tuple interface. `none` includes fuel exhaustion. -/
 def simulate (fuel : Nat) (input0 : Rat) (input1 : Rat) (input2 : Rat) (input3 : Rat) (input4 : Rat) : Option (Rat × Rat) :=

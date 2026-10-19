@@ -21,7 +21,7 @@ theorem freeFallLoop_compiled_mono (ops : Ops α) [Inhabited α]
       (Generated.FreeFallLoop.simulateCompiled ops m args) := by
   rw [Generated.FreeFallLoop.simulate_compiled_link,
       Generated.FreeFallLoop.simulate_compiled_link]
-  exact exec_mono ops h _ (args.map some)
+  exact exec_mono ops h _ (args.map (fun x => some (.scalar x)))
 
 /-- A fuel-free total spec for the zero-duration loop: it returns its initial
     state, for arbitrary position, velocity, acceleration, and step size. -/
@@ -29,7 +29,7 @@ theorem freeFallLoop_zero_time_total (x v a dt : Rat) :
     TotalSpec Ops.rat Generated.FreeFallLoop.simulateIR [0, x, v, a, dt]
       (fun values => values = [x, v]) := by
   refine ⟨32, [x, v], ?_, rfl⟩
-  simp [Fn.run, Generated.FreeFallLoop.simulateIR, exec, evalE, evalC, Ops.rat,
+  simp [Fn.run, Generated.FreeFallLoop.simulateIR, exec, evalS, evalV, Val.asScalar, evalC, Ops.rat,
     readSlot, Env.get?, Env.set, Outcome.fromEval, Outcome.bindEnv,
     bind, pure, Except.bind, Except.pure]
 

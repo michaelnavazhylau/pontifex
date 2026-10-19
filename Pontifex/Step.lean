@@ -52,14 +52,14 @@ end Pontifex
     the generated `<fn>` and any specification functions). -/
 macro "pontifex_step" "[" ts:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
   `(tactic|
-    (simp [$ts,*, Pontifex.Fn.run, Pontifex.exec, Pontifex.evalE, Pontifex.evalC,
+    (simp [$ts,*, Pontifex.Fn.run, Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Outcome.toOption,
         Pontifex.Env.get?, Pontifex.Env.set, Pontifex.Ops.rat, Pontifex.Ops.float,
         Pontifex.Ops.binary64, Pontifex.Binary64.toFloat, Pontifex.Binary64.ofFloat]
      try (repeat' split)
-     all_goals (try (simp_all [$ts,*, Pontifex.exec, Pontifex.evalE, Pontifex.evalC,
+     all_goals (try (simp_all [$ts,*, Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Env.get?, Pontifex.Env.set,
@@ -74,14 +74,14 @@ macro "pontifex_step" "[" ts:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
 
 macro "pontifex_step" : tactic =>
   `(tactic|
-    (simp [Pontifex.Fn.run, Pontifex.exec, Pontifex.evalE, Pontifex.evalC,
+    (simp [Pontifex.Fn.run, Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Outcome.toOption,
         Pontifex.Env.get?, Pontifex.Env.set, Pontifex.Ops.rat, Pontifex.Ops.float,
         Pontifex.Ops.binary64, Pontifex.Binary64.toFloat, Pontifex.Binary64.ofFloat]
      try (repeat' split)
-     all_goals (try (simp_all [Pontifex.exec, Pontifex.evalE, Pontifex.evalC,
+     all_goals (try (simp_all [Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Env.get?, Pontifex.Env.set,
@@ -97,7 +97,7 @@ macro "pontifex_step" : tactic =>
 /-- Print the simplified state with extra definitions, then try to finish. -/
 macro "pontifex_step?" "[" ts:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
   `(tactic|
-    (simp [$ts,*, Pontifex.Fn.run, Pontifex.exec, Pontifex.evalE, Pontifex.evalC,
+    (simp [$ts,*, Pontifex.Fn.run, Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Outcome.toOption,
@@ -116,7 +116,7 @@ macro "pontifex_step?" "[" ts:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
 /-- Print the simplified state, then try to finish. -/
 macro "pontifex_step?" : tactic =>
   `(tactic|
-    (simp [Pontifex.Fn.run, Pontifex.exec, Pontifex.evalE, Pontifex.evalC,
+    (simp [Pontifex.Fn.run, Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Outcome.toOption,

@@ -15,10 +15,11 @@ example (x v a dt : Rat) :
 
 ## What it does
 
-1. `simp` with an explicit rule list: the semantics (`Fn.run`, `exec`, `evalE`,
-   `evalC`, `readSlot`, `checkedDiv`, phi helpers, `Outcome.bindEnv/fromEval/
-   toOption`, `Env.get?/set`), both arithmetic backends, and any definitions
-   passed in brackets.
+1. `simp` with an explicit rule list: the semantics (`Fn.run`, `exec`, `evalV`,
+   `evalS`, `Val.asScalar`, `evalC`, `readSlot`, `checkedDiv`, `indexVal`,
+   `setVal`, `lenVal`, phi helpers, `Outcome.bindEnv/fromEval/toOption`,
+   `Env.get?/set`), both arithmetic backends, and any definitions passed in
+   brackets.
 2. `split` on symbolic branches.
 3. Try, per goal: `rfl`, `rat_ring`, `omega`, `simp_all`, an assumption, or
    `decide`.

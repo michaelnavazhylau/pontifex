@@ -111,6 +111,70 @@ class Un(Expr):
         return {"k": "un", "op": self.op, "e": self.arg.to_json()}
 
 
+@dataclass(frozen=True)
+class Index(Expr):
+    """Bounds-checked read: ``array[index]``.
+
+    A bad index (fractional, negative) or an out-of-range integer index is
+    ``failed .indexOutOfBounds``.
+    """
+
+    array: Expr
+    index: Expr
+
+    def __str__(self) -> str:
+        return f"{self.array}[{self.index}]"
+
+    def to_json(self) -> Json:
+        return {"k": "index", "a": self.array.to_json(), "i": self.index.to_json()}
+
+
+@dataclass(frozen=True)
+class Len(Expr):
+    """Array length as a scalar."""
+
+    array: Expr
+
+    def __str__(self) -> str:
+        return f"len({self.array})"
+
+    def to_json(self) -> Json:
+        return {"k": "len", "a": self.array.to_json()}
+
+
+@dataclass(frozen=True)
+class ArrayLit(Expr):
+    """A fresh fixed-length array of scalar expressions."""
+
+    items: tuple[Expr, ...]
+
+    def __str__(self) -> str:
+        return "[" + ", ".join(str(i) for i in self.items) + "]"
+
+    def to_json(self) -> Json:
+        return {"k": "arrayLit", "es": [i.to_json() for i in self.items]}
+
+
+@dataclass(frozen=True)
+class Set(Expr):
+    """Functional, bounds-checked update producing a new array value."""
+
+    array: Expr
+    index: Expr
+    value: Expr
+
+    def __str__(self) -> str:
+        return f"set({self.array}, {self.index}, {self.value})"
+
+    def to_json(self) -> Json:
+        return {
+            "k": "set",
+            "a": self.array.to_json(),
+            "i": self.index.to_json(),
+            "v": self.value.to_json(),
+        }
+
+
 # ---------------------------------------------------------------------------
 # Conditions
 # ---------------------------------------------------------------------------
@@ -303,6 +367,14 @@ def _expr_of_json(j: Json) -> Expr:
         return Bin(j["op"], _expr_of_json(j["l"]), _expr_of_json(j["r"]))
     if k == "un":
         return Un(j["op"], _expr_of_json(j["e"]))
+    if k == "index":
+        return Index(_expr_of_json(j["a"]), _expr_of_json(j["i"]))
+    if k == "len":
+        return Len(_expr_of_json(j["a"]))
+    if k == "arrayLit":
+        return ArrayLit(tuple(_expr_of_json(e) for e in j["es"]))
+    if k == "set":
+        return Set(_expr_of_json(j["a"]), _expr_of_json(j["i"]), _expr_of_json(j["v"]))
     raise ValueError(f"unknown expression kind {k!r}")
 
 
@@ -378,6 +450,17 @@ def slots_read(e: Expr | Cond) -> set[int]:
         return slots_read(e.arg)
     if isinstance(e, Pow):
         return slots_read(e.base)
+    if isinstance(e, Index):
+        return slots_read(e.array) | slots_read(e.index)
+    if isinstance(e, Len):
+        return slots_read(e.array)
+    if isinstance(e, ArrayLit):
+        out: set[int] = set()
+        for item in e.items:
+            out |= slots_read(item)
+        return out
+    if isinstance(e, Set):
+        return slots_read(e.array) | slots_read(e.index) | slots_read(e.value)
     if isinstance(e, Cmp):
         return slots_read(e.lhs) | slots_read(e.rhs)
     if isinstance(e, (And, Or)):

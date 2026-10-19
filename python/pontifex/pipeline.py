@@ -110,6 +110,15 @@ def observe_python(fn: Callable[..., Any], args: Sequence[Any]) -> Outcome:
         return Failed("divisionByZero")
     except OverflowError:
         return Failed("overflow")
+    except IndexError:
+        return Failed("indexOutOfBounds")
+    except TypeError as exc:
+        # The only subscript site in the subset is ``xs[i]``; CPython raises
+        # TypeError for a non-integer index, which the IR maps to the same
+        # defined bounds failure.
+        if "index" in str(exc) or "indices" in str(exc):
+            return Failed("indexOutOfBounds")
+        raise
 
 
 def run_python_source(
@@ -197,13 +206,19 @@ def _decode_outcome(item: dict[str, Any]) -> Outcome:
         return OutOfFuel()
     if kind == "fellThrough":
         return FellThrough({
-            i: (_bits_to_float(value) if value.startswith("0x") else _parse_rat_string(value))
+            i: _decode_value(value)
             for i, value in enumerate(item["slots"]) if value is not None
         })
-    values = item["vals"]
-    if values and isinstance(values[0], str) and values[0].startswith("0x"):
-        return Returned(tuple(_bits_to_float(v) for v in values))
-    return Returned(tuple(_parse_rat_string(v) for v in values))
+    return Returned(tuple(_decode_value(v) for v in item["vals"]))
+
+
+def _decode_value(value: Any) -> Any:
+    """One wire value: scalar text or a nested array of scalar texts."""
+    if isinstance(value, list):
+        return [_decode_value(v) for v in value]
+    if isinstance(value, str) and value.startswith("0x"):
+        return _bits_to_float(value)
+    return _parse_rat_string(value)
 
 
 def _parse_rat_string(text: str) -> Fraction:
@@ -221,6 +236,29 @@ def _bits_to_float(text: str) -> float:
     return value
 
 
+def _compare_values(a: Any, b: Any) -> str | None:
+    """Compare one scalar or array value; bit-level for floats."""
+    if isinstance(a, (list, tuple)) or isinstance(b, (list, tuple)):
+        if type(a) is not type(b):
+            return f"value kind mismatch: {a!r} vs {b!r}"
+        if len(a) != len(b):
+            return f"array length mismatch: {len(a)} vs {len(b)}"
+        for i, (x, y) in enumerate(zip(a, b)):
+            difference = _compare_values(x, y)
+            if difference is not None:
+                return f"element {i}: {difference}"
+        return None
+    if isinstance(a, float) or isinstance(b, float):
+        import struct as _s
+
+        if _s.pack("<d", float(a)) != _s.pack("<d", float(b)):
+            return f"value {a!r} vs {b!r} (bit-level)"
+        return None
+    if Fraction(a) != Fraction(b):
+        return f"value {a!r} vs {b!r}"
+    return None
+
+
 def compare_outcomes(
     left: Outcome, right: Outcome
 ) -> str | None:
@@ -234,21 +272,18 @@ def compare_outcomes(
             if isinstance(left, FellThrough):
                 if left.env.keys() != right.env.keys():
                     return "environment slot mismatch"
-                slots = sorted(left.env)
-                return compare_outcomes(Returned(tuple(left.env[i] for i in slots)),
-                    Returned(tuple(right.env[i] for i in slots)))
+                for slot in sorted(left.env):
+                    difference = _compare_values(left.env[slot], right.env[slot])
+                    if difference is not None:
+                        return f"slot {slot}: {difference}"
             return None
         return f"termination mismatch: {type(left).__name__} vs {type(right).__name__}"
     if len(lv) != len(rv):
         return f"arity mismatch: {lv} vs {rv}"
     for i, (a, b) in enumerate(zip(lv, rv)):
-        if isinstance(a, float) or isinstance(b, float):
-            import struct as _s
-
-            if _s.pack("<d", float(a)) != _s.pack("<d", float(b)):
-                return f"value {i}: {a!r} vs {b!r} (bit-level)"
-        elif Fraction(a) != Fraction(b):
-            return f"value {i}: {a!r} vs {b!r}"
+        difference = _compare_values(a, b)
+        if difference is not None:
+            return f"value {i}: {difference}"
     return None
 
 

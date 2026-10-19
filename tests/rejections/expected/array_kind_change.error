@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/array_kind_change.py:3:5: variable 'xs' changes between scalar and array in the branches of the if

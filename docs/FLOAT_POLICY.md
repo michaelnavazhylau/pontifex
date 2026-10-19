@@ -1,4 +1,4 @@
-# Binary64 boundary and arithmetic policy (schema 2)
+# Binary64 boundary and arithmetic policy (schema 3)
 
 This is an explicit scalar binary64 reading, not a complete model of Python's
 mixed `int`/`float` tower. Its code↔IR certificates are kernel-checked; agreement
@@ -24,6 +24,11 @@ with CPython's native arithmetic is **tested**, not a compiler/hardware proof.
   not the bit-exact protocol. Their conversion can round or overflow. General
   large Python integer coercions and integer-only subexpressions are still not
   a verified numeric-tower model (P3).
+* Array indices use `Ops.toIndex`. In the Float backends, an index is accepted
+  only when it is a non-negative integral binary64 value at most `2^53`; that
+  conversion uses the native `Float.toUInt64`/`Float.floor` pair and is
+  **tested**, not proved. Every rejected index (fractional, negative,
+  non-finite, too large) is the same defined `failed .indexOutOfBounds`.
 
 ## Two-tier representation and proved component specs
 

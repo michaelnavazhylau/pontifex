@@ -5,12 +5,16 @@ import textwrap
 
 from pontifex.frontend import translate
 from pontifex.source import (
+    ArrayLit,
     Assign,
     Bin,
+    Index,
     Ite,
+    Len,
     Lit,
     Ret,
     Pow,
+    Set,
     Un,
     Var,
     While,
@@ -120,3 +124,23 @@ def test_returns_are_preserved_inside_branches():
     assert isinstance(sfn.body[0], Ite)
     assert isinstance(sfn.body[0].then_[0], Ret)
     assert isinstance(sfn.body[1], Ret)
+
+
+def test_array_constructs_are_preserved():
+    sfn, _ = _source(
+        """
+        def f(i):
+            xs = [1.0, 2.0]
+            xs[i] = xs[i] + 1
+            return xs[0], len(xs)
+        """
+    )
+    assert isinstance(sfn.body[0], Assign)
+    assert isinstance(sfn.body[0].expr, ArrayLit)
+    assert isinstance(sfn.body[1], Assign)
+    store = sfn.body[1].expr
+    assert isinstance(store, Set)
+    assert isinstance(store.array, Var)
+    assert isinstance(store.value, Bin)
+    assert isinstance(store.value.lhs, Index)
+    assert isinstance(sfn.body[2].exprs[1], Len)

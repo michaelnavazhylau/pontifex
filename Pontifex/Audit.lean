@@ -20,6 +20,9 @@ import Pontifex.Audit.Command
 #audit_axioms Pontifex.Generated.EarlyExit.advance_lowering
 #audit_axioms Pontifex.Generated.EarlyExit.advance_compiled_link
 #audit_axioms Pontifex.Generated.EarlyExit.advance_link
+#audit_axioms Pontifex.Generated.ArrayStep.advance_lowering
+#audit_axioms Pontifex.Generated.ArrayStep.advance_compiled_link
+#audit_axioms Pontifex.Generated.ArrayStep.advance_link
 #audit_axioms Pontifex.Examples.freeFall_matches_spec
 #audit_axioms Pontifex.Examples.harmonicOscillator_matches_spec
 #audit_axioms Pontifex.Examples.freeFall_ir_matches_spec

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/augassign_subscript.py:3:5: augmented subscript assignment (xs[i] += v) is not supported; write xs[i] = xs[i] + v

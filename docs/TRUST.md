@@ -21,8 +21,9 @@ Python file -- trusted parsing/transcription --> core Source AST
   for all Python programs. Transcription/desugaring and fidelity of that
   reference lowering remain trust boundaries.
 * `<fn>_compiled_link` checks code↔IR behavioral equivalence for every fuel,
-  environment, and `Ops α`. Generated blocks do not call `exec`, `evalE`, or
-  `evalC`; they independently emit operations, control flow, and phi copies.
+  environment, and `Ops α`. Generated blocks do not call `exec`, `evalV`,
+  `evalS`, or `evalC`; they independently emit operations, control flow, and
+  phi copies.
   Parent certificates compose child certificates, with fuel induction for loops.
 * Fallible arithmetic (division/power) uses the same certified backend even
   without control flow. It preserves all outcomes, not just successful results.
@@ -87,6 +88,43 @@ return, and returns that disagree on arity. The per-program
 computes the same merges and slot allocation; the generated code certificates
 are unaffected because the outcome algebra was already right.
 
+## Arrays
+
+Slots hold a tagged value:
+
+```
+Val α := .scalar α | .array (List α)
+```
+
+There is no second environment and no reference model. Arrays therefore merge
+through the existing `if` and loop `Phi` nodes, and `Outcome`, `exec`,
+`Fn.run`, `exec_mono`, and `exec_completed_stable` keep their signatures. Length
+is intrinsic to the `List`; there is no separate size slot to desynchronise.
+
+The surface subset is one-dimensional list literals, `xs[i]`, `xs[i] = v`, and
+`len(xs)`:
+
+* `index` and `set` are bounds-checked. A fractional, negative, non-finite, or
+  out-of-range index is `failed .indexOutOfBounds`; an array used where a scalar
+  is required (or a scalar indexed) is `stuck`, but the frontend rejects that
+  statically.
+* `set` is a functional expression. `xs[i] = v` assigns it to a fresh slot for
+  `xs`, so earlier bindings are unchanged. This is what keeps the IR alias-free.
+  Array-to-array assignment, array parameters/returns, nested arrays, and
+  augmented subscript assignment are rejected by the frontend.
+* `len` returns `Ops.ofNat` of the list length, so it is a scalar in every
+  backend.
+* `set` evaluates its right-hand side first, then the array, then the index,
+  matching Python's evaluation order for `xs[i] = v` (only the reported failure
+  can differ otherwise).
+* Static scalar/array kinds are tracked through `if` merges and loop bodies.
+  A variable that changes kind across paths is rejected. This is a frontend
+  restriction checked by tests, not a proved type system.
+* `Ops.toIndex` is exact for `Rat`. In the Float/binary64 backends it accepts
+  non-negative integral values up to `2^53` via native `Float.floor`/
+  `Float.toUInt64`; that conversion is **tested**, not proved, and every
+  rejection is the same defined bounds failure.
+
 ## Numeric readings and transport
 
 See **[FLOAT_POLICY.md](FLOAT_POLICY.md)** for the precise boundary contract.
@@ -110,8 +148,9 @@ See **[FLOAT_POLICY.md](FLOAT_POLICY.md)** for the precise boundary contract.
   Float readings are deliberate scalar interpretations, not interchangeable
   claims about all accepted Python expressions.
 
-Schema **2** covers the changed outcome/state semantics and literal/power IR.
-Schema-1 artifacts are intentionally rejected and must be regenerated.
+Schema **3** covers tagged slot values (`Val`), array expressions, and the
+array-index policy; schema-2 and schema-1 artifacts are intentionally rejected
+and must be regenerated.
 
 ## Fuel convention
 

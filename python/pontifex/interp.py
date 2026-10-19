@@ -9,11 +9,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Any, Callable, Mapping, Sequence
+import math
 import struct
 
 from .ir import (
-    And, Assign, Bin, Cmp, Cond, Expr, Fn, Ite, Lit, Not, Or, Pow, Ret,
-    Seq, Skip, Slot, Stmt, Un, Where, While,
+    And, ArrayLit, Assign, Bin, Cmp, Cond, Expr, Fn, Index, Ite, Len, Lit, Not,
+    Or, Pow, Ret, Seq, Set, Skip, Slot, Stmt, Un, Where, While,
 )
 from .errors import InterpreterError
 
@@ -28,6 +29,7 @@ class Returned:
 
 @dataclass(frozen=True)
 class FellThrough:
+    #: Slot values: scalars (Fraction / float) or arrays (lists of scalars).
     env: dict[int, Number]
 
 
@@ -54,6 +56,10 @@ def to_option(outcome: Outcome) -> tuple[Number, ...] | None:
 
 
 class _StuckSignal(Exception):
+    pass
+
+
+class _IndexSignal(Exception):
     pass
 
 
@@ -87,7 +93,21 @@ def _read(env, slot):
     return env[slot]
 
 
-def eval_expr(e: Expr, env: Mapping[int, Number], ops: Mapping[str, Callable]) -> Number:
+def _index_of(value) -> int | None:
+    """Non-negative integral scalars only; anything else is a bad index."""
+    if isinstance(value, Fraction):
+        if value.denominator == 1 and value >= 0:
+            return int(value.numerator)
+        return None
+    if isinstance(value, float):
+        if math.isfinite(value) and value >= 0 and value.is_integer() and value <= 2**53:
+            return int(value)
+        return None
+    return None
+
+
+def eval_value(e: Expr, env: Mapping[int, Number], ops: Mapping[str, Callable]) -> Number:
+    """Evaluate to a scalar or a list of scalars (a `Val`)."""
     if isinstance(e, Slot):
         return _read(env, e.index)
     if isinstance(e, Lit):
@@ -95,17 +115,56 @@ def eval_expr(e: Expr, env: Mapping[int, Number], ops: Mapping[str, Callable]) -
             return struct.unpack(">d", struct.pack(">Q", e.bits))[0]
         return ops["literal"](e.value)
     if isinstance(e, Bin):
-        return ops[e.op](eval_expr(e.lhs, env, ops), eval_expr(e.rhs, env, ops))
+        return ops[e.op](
+            eval_scalar(e.lhs, env, ops), eval_scalar(e.rhs, env, ops)
+        )
     if isinstance(e, Un):
-        return ops[e.op](eval_expr(e.arg, env, ops))
+        return ops[e.op](eval_scalar(e.arg, env, ops))
     if isinstance(e, Pow):
-        return ops["pow"](eval_expr(e.base, env, ops), e.exponent)
+        return ops["pow"](eval_scalar(e.base, env, ops), e.exponent)
+    if isinstance(e, Index):
+        array = eval_value(e.array, env, ops)
+        index = eval_scalar(e.index, env, ops)
+        if not isinstance(array, list):
+            raise _StuckSignal
+        i = _index_of(index)
+        if i is None or i >= len(array):
+            raise _IndexSignal
+        return array[i]
+    if isinstance(e, Len):
+        array = eval_value(e.array, env, ops)
+        if not isinstance(array, list):
+            raise _StuckSignal
+        return ops["literal"](len(array))
+    if isinstance(e, ArrayLit):
+        return [eval_scalar(item, env, ops) for item in e.items]
+    if isinstance(e, Set):
+        # Python evaluates the right-hand side first, then the target array and
+        # the index expression.
+        value = eval_scalar(e.value, env, ops)
+        array = eval_value(e.array, env, ops)
+        index = eval_scalar(e.index, env, ops)
+        if not isinstance(array, list):
+            raise _StuckSignal
+        i = _index_of(index)
+        if i is None or i >= len(array):
+            raise _IndexSignal
+        updated = list(array)
+        updated[i] = value
+        return updated
     raise TypeError(type(e))
+
+
+def eval_scalar(e: Expr, env: Mapping[int, Number], ops: Mapping[str, Callable]) -> Number:
+    value = eval_value(e, env, ops)
+    if isinstance(value, list):
+        raise _StuckSignal
+    return value
 
 
 def eval_cond(c: Cond, env: Mapping[int, Number], ops: Mapping[str, Callable]) -> bool:
     if isinstance(c, Cmp):
-        return bool(ops[c.op](eval_expr(c.lhs, env, ops), eval_expr(c.rhs, env, ops)))
+        return bool(ops[c.op](eval_scalar(c.lhs, env, ops), eval_scalar(c.rhs, env, ops)))
     if isinstance(c, And):
         return eval_cond(c.lhs, env, ops) and eval_cond(c.rhs, env, ops)
     if isinstance(c, Or):
@@ -137,6 +196,8 @@ class Interpreter:
             return Failed("divisionByZero")
         except OverflowError:
             return Failed("overflow")
+        except _IndexSignal:
+            return Failed("indexOutOfBounds")
         except _StuckSignal:
             return Stuck()
 
@@ -147,7 +208,7 @@ class Interpreter:
             return FellThrough(dict(env))
         if isinstance(s, Assign):
             updated = dict(env)
-            updated[s.slot] = eval_expr(s.expr, env, self.ops)
+            updated[s.slot] = eval_value(s.expr, env, self.ops)
             return FellThrough(updated)
         if isinstance(s, Seq):
             current = FellThrough(dict(env))
@@ -183,7 +244,7 @@ class Interpreter:
                 remaining -= 1
             return OutOfFuel()
         if isinstance(s, Ret):
-            return Returned(tuple(eval_expr(e, env, self.ops) for e in s.exprs))
+            return Returned(tuple(eval_scalar(e, env, self.ops) for e in s.exprs))
         raise TypeError(type(s))
 
 

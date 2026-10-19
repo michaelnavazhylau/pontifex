@@ -107,6 +107,30 @@ PROGRAMS = {
                 x = x - 1
             return y
     """,
+    "array_vector": """
+        def f(i, n):
+            xs = [0.0, 0.0, 0.0]
+            j = 0
+            while j < n:
+                xs[j] = xs[j] + 1
+                j = j + 1
+            return xs[i], len(xs)
+    """,
+    "array_phi": """
+        def f(c, dt):
+            if c > 0:
+                xs = [1.0, 2.0]
+            else:
+                xs = [3.0, 4.0]
+            xs[0] = xs[0] + dt
+            return xs[0]
+    """,
+    "array_bounds": """
+        def f(v):
+            xs = [1.0, 2.0]
+            xs[2] = v
+            return xs[0]
+    """,
     "both_branches_return": """
         def f(x, y):
             if x > y:
@@ -190,7 +214,7 @@ def test_corrupt_codegen_is_rejected_by_kernel(mutation, tmp_path):
     baseline = check_lean(tmp_path, text)
     assert baseline.returncode == 0, baseline.stdout + baseline.stderr
     if mutation == "arithmetic":
-        corrupted = text.replace("return ops.add ", "return ops.sub ", 1)
+        corrupted = text.replace("return Val.scalar (ops.add ", "return Val.scalar (ops.sub ", 1)
     elif mutation == "phi":
         # Read the wrong predecessor in an otherwise intact parallel phi copy.
         corrupted = re.sub(r"\(if branch then \d+ else \d+\)", "0", text, count=1)

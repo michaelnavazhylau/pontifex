@@ -28,13 +28,16 @@ from .version import (
 )
 from .ir import (
     And,
+    ArrayLit,
     Assign,
     Bin,
     Cmp,
     Cond,
     Expr,
     Fn,
+    Index,
     Ite,
+    Len,
     Lit,
     Not,
     Or,
@@ -42,6 +45,7 @@ from .ir import (
     Pow,
     Ret,
     Seq,
+    Set,
     Skip,
     Slot,
     Stmt,
@@ -123,6 +127,17 @@ def expr_of_ir(e: Expr) -> str:
         return f"(.bin .{e.op} {expr_of_ir(e.lhs)} {expr_of_ir(e.rhs)})"
     if isinstance(e, Un):
         return f"(.un .{e.op} {expr_of_ir(e.arg)})"
+    if isinstance(e, Index):
+        return f"(.index {expr_of_ir(e.array)} {expr_of_ir(e.index)})"
+    if isinstance(e, Len):
+        return f"(.len {expr_of_ir(e.array)})"
+    if isinstance(e, ArrayLit):
+        items = ", ".join(expr_of_ir(i) for i in e.items)
+        return f"(.arrayLit [{items}])"
+    if isinstance(e, Set):
+        return (
+            f"(.set {expr_of_ir(e.array)} {expr_of_ir(e.index)} {expr_of_ir(e.value)})"
+        )
     raise TypeError(type(e))
 
 
@@ -219,6 +234,8 @@ class Emitter:
                 return f"(-{self.expr(e.arg, env)})"
             if e.op == "abs":
                 return f"(Rat.abs {self.expr(e.arg, env)})"
+        if isinstance(e, (Index, Len, ArrayLit, Set)):
+            raise TypeError("array expressions require the certified backend")
         raise TypeError(type(e))
 
     # -- statements -------------------------------------------------------
@@ -268,7 +285,10 @@ def needs_checked_backend(s: Stmt) -> bool:
     """Use full-outcome code for control flow or possibly failing arithmetic."""
     def checked(value):
         if isinstance(value, dict):
-            if value.get("k") in {"ite", "while", "pow"} or value.get("op") == "div":
+            if (
+                value.get("k") in {"ite", "while", "pow", "index", "len", "arrayLit", "set"}
+                or value.get("op") == "div"
+            ):
                 return True
             return any(checked(v) for v in value.values())
         if isinstance(value, list):

@@ -18,7 +18,7 @@ open Pontifex
 
 /-- Semantic configuration this artifact was generated under. -/
 def pontifexConfig : Config :=
-  { irVersion := 2
+  { irVersion := 3
     fuelPolicy := .allFuel
     numericMode := .exactRat }
 
@@ -53,7 +53,7 @@ theorem advance_lowering :
 def advance_block3 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval ([(readSlot env 0), (readSlot env 1)].mapM id) Outcome.returned
+    Outcome.fromEval ([((match (readSlot env 0) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α), ((match (readSlot env 1) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α)].mapM id) Outcome.returned
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem advance_block3_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -97,7 +97,7 @@ theorem advance_block5_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env :
 def advance_block1 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 2); let y ← (.ok (ops.ofRat (0 : Rat))); return ops.le x y) fun branch =>
+    Outcome.fromEval (do let x ← ((match (readSlot env 2) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α); let y ← ((match ((.ok (Val.scalar (ops.ofRat (0 : Rat)))) : Eval (Val α)) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α); return ops.le x y) fun branch =>
       (if branch then advance_block2 ops fuel env else advance_block5 ops fuel env).bindEnv fun next =>
         Outcome.fromEval ([].foldlM (fun acc (target, origin) => do let x ← readSlot next origin; return acc.set target x) next) Outcome.fellThrough
 
@@ -143,7 +143,7 @@ theorem advance_block12_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def advance_block18 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval ([(.ok (ops.ofRat (8 : Rat))), (readSlot env 4)].mapM id) Outcome.returned
+    Outcome.fromEval ([((match ((.ok (Val.scalar (ops.ofRat (8 : Rat)))) : Eval (Val α)) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α), ((match (readSlot env 4) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α)].mapM id) Outcome.returned
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem advance_block18_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -187,7 +187,7 @@ theorem advance_block20_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def advance_block16 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 5); let y ← (.ok (ops.ofRat (8 : Rat))); return ops.gt x y) fun branch =>
+    Outcome.fromEval (do let x ← ((match (readSlot env 5) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α); let y ← ((match ((.ok (Val.scalar (ops.ofRat (8 : Rat)))) : Eval (Val α)) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α); return ops.gt x y) fun branch =>
       (if branch then advance_block17 ops fuel env else advance_block20 ops fuel env).bindEnv fun next =>
         Outcome.fromEval ([].foldlM (fun acc (target, origin) => do let x ← readSlot next origin; return acc.set target x) next) Outcome.fellThrough
 
@@ -200,7 +200,7 @@ theorem advance_block16_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def advance_block22 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 4); let y ← (.ok (ops.ofRat (1 : Rat))); return ops.add x y) (fun x => .fellThrough (env.set 6 x))
+    Outcome.fromEval (do let va ← (readSlot env 4); let x ← Val.asScalar va; let vb ← ((.ok (Val.scalar (ops.ofRat (1 : Rat)))) : Eval (Val α)); let y ← Val.asScalar vb; return Val.scalar (ops.add x y)) (fun x => .fellThrough (env.set 6 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem advance_block22_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -211,7 +211,7 @@ theorem advance_block22_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def advance_block24 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 5); let y ← (readSlot env 6); return ops.add x y) (fun x => .fellThrough (env.set 7 x))
+    Outcome.fromEval (do let va ← (readSlot env 5); let x ← Val.asScalar va; let vb ← (readSlot env 6); let y ← Val.asScalar vb; return Val.scalar (ops.add x y)) (fun x => .fellThrough (env.set 7 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem advance_block24_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -222,7 +222,7 @@ theorem advance_block24_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def advance_block26 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 3); let y ← (.ok (ops.ofRat (1 : Rat))); return ops.sub x y) (fun x => .fellThrough (env.set 8 x))
+    Outcome.fromEval (do let va ← (readSlot env 3); let x ← Val.asScalar va; let vb ← ((.ok (Val.scalar (ops.ofRat (1 : Rat)))) : Eval (Val α)); let y ← Val.asScalar vb; return Val.scalar (ops.sub x y)) (fun x => .fellThrough (env.set 8 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem advance_block26_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -288,7 +288,7 @@ theorem advance_block15_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def advance_block14 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 3); let y ← (.ok (ops.ofRat (0 : Rat))); return ops.gt x y) fun branch =>
+    Outcome.fromEval (do let x ← ((match (readSlot env 3) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α); let y ← ((match ((.ok (Val.scalar (ops.ofRat (0 : Rat)))) : Eval (Val α)) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α); return ops.gt x y) fun branch =>
       if branch then
         (advance_block15 ops fuel env).bindEnv fun next =>
           Outcome.fromEval ([(3, 8), (4, 6), (5, 7)].foldlM (fun acc (target, origin) => do let x ← readSlot next origin; return acc.set target x) next) fun header =>
@@ -362,7 +362,7 @@ theorem advance_block7_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env :
 def advance_block30 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval ([(readSlot env 5), (readSlot env 4)].mapM id) Outcome.returned
+    Outcome.fromEval ([((match (readSlot env 5) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α), ((match (readSlot env 4) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α)].mapM id) Outcome.returned
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem advance_block30_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -415,12 +415,12 @@ theorem advance_block0_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env :
 
 /-- The compiled function preserves full outcomes, including exhaustion. -/
 def advanceCompiled (ops : Ops α) [Inhabited α] (fuel : Nat) (args : List α) :
-    Outcome α := advance_block0 ops fuel (args.map some)
+    Outcome α := advance_block0 ops fuel (args.map (fun x => some (Val.scalar x)))
 
 theorem advance_compiled_link (ops : Ops α) [Inhabited α]
     (fuel : Nat) (args : List α) :
     advanceCompiled ops fuel args = Fn.run ops advanceIR fuel args := by
-  exact advance_block0_correct ops fuel (args.map some)
+  exact advance_block0_correct ops fuel (args.map (fun x => some (Val.scalar x)))
 
 /-- Public exact-rational tuple interface. `none` includes fuel exhaustion. -/
 def advance (fuel : Nat) (input0 : Rat) (input1 : Rat) (input2 : Rat) : Option (Rat × Rat) :=

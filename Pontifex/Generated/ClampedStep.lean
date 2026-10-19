@@ -18,7 +18,7 @@ open Pontifex
 
 /-- Semantic configuration this artifact was generated under. -/
 def pontifexConfig : Config :=
-  { irVersion := 2
+  { irVersion := 3
     fuelPolicy := .allFuel
     numericMode := .exactRat }
 
@@ -53,7 +53,7 @@ theorem step_lowering :
 def step_block1 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 0); let y ← (do let x ← (readSlot env 1); let y ← (readSlot env 2); return ops.mul x y); return ops.add x y) (fun x => .fellThrough (env.set 4 x))
+    Outcome.fromEval (do let va ← (readSlot env 0); let x ← Val.asScalar va; let vb ← (do let va ← (readSlot env 1); let x ← Val.asScalar va; let vb ← (readSlot env 2); let y ← Val.asScalar vb; return Val.scalar (ops.mul x y)); let y ← Val.asScalar vb; return Val.scalar (ops.add x y)) (fun x => .fellThrough (env.set 4 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem step_block1_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -75,7 +75,7 @@ theorem step_block5_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : En
 def step_block7 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (.ok (ops.ofRat (0 : Rat))) (fun x => .fellThrough (env.set 6 x))
+    Outcome.fromEval ((.ok (Val.scalar (ops.ofRat (0 : Rat)))) : Eval (Val α)) (fun x => .fellThrough (env.set 6 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem step_block7_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -130,7 +130,7 @@ theorem step_block9_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : En
 def step_block3 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval (do let x ← (readSlot env 4); let y ← (readSlot env 3); return ops.gt x y) fun branch =>
+    Outcome.fromEval (do let x ← ((match (readSlot env 4) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α); let y ← ((match (readSlot env 3) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α); return ops.gt x y) fun branch =>
       (if branch then step_block4 ops fuel env else step_block9 ops fuel env).bindEnv fun next =>
         Outcome.fromEval ([(7, (if branch then 6 else 1)), (8, (if branch then 5 else 4))].foldlM (fun acc (target, origin) => do let x ← readSlot next origin; return acc.set target x) next) Outcome.fellThrough
 
@@ -143,7 +143,7 @@ theorem step_block3_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : En
 def step_block11 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    Outcome.fromEval ([(readSlot env 8), (readSlot env 7)].mapM id) Outcome.returned
+    Outcome.fromEval ([((match (readSlot env 8) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α), ((match (readSlot env 7) with | .ok v => Val.asScalar v | .error f => .error f) : Eval α)].mapM id) Outcome.returned
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem step_block11_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -196,12 +196,12 @@ theorem step_block0_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : En
 
 /-- The compiled function preserves full outcomes, including exhaustion. -/
 def stepCompiled (ops : Ops α) [Inhabited α] (fuel : Nat) (args : List α) :
-    Outcome α := step_block0 ops fuel (args.map some)
+    Outcome α := step_block0 ops fuel (args.map (fun x => some (Val.scalar x)))
 
 theorem step_compiled_link (ops : Ops α) [Inhabited α]
     (fuel : Nat) (args : List α) :
     stepCompiled ops fuel args = Fn.run ops stepIR fuel args := by
-  exact step_block0_correct ops fuel (args.map some)
+  exact step_block0_correct ops fuel (args.map (fun x => some (Val.scalar x)))
 
 /-- Public exact-rational tuple interface. `none` includes fuel exhaustion. -/
 def step (fuel : Nat) (input0 : Rat) (input1 : Rat) (input2 : Rat) (input3 : Rat) : Option (Rat × Rat) :=

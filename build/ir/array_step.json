@@ -1,0 +1,191 @@
+{
+  "irVersion": 3,
+  "name": "advance",
+  "params": [
+    "i",
+    "dt"
+  ],
+  "slotNames": [
+    "i",
+    "dt",
+    "xs",
+    "j",
+    "j#loop",
+    "xs#loop",
+    "xs_1",
+    "j_1"
+  ],
+  "body": {
+    "k": "seq",
+    "ss": [
+      {
+        "k": "assign",
+        "slot": 2,
+        "e": {
+          "k": "arrayLit",
+          "es": [
+            {
+              "k": "floatLit",
+              "num": 0,
+              "den": 1,
+              "bits": "0"
+            },
+            {
+              "k": "floatLit",
+              "num": 0,
+              "den": 1,
+              "bits": "0"
+            },
+            {
+              "k": "floatLit",
+              "num": 0,
+              "den": 1,
+              "bits": "0"
+            }
+          ]
+        }
+      },
+      {
+        "k": "assign",
+        "slot": 3,
+        "e": {
+          "k": "lit",
+          "num": 0,
+          "den": 1
+        }
+      },
+      {
+        "k": "seq",
+        "ss": [
+          {
+            "k": "assign",
+            "slot": 4,
+            "e": {
+              "k": "slot",
+              "i": 3
+            }
+          },
+          {
+            "k": "assign",
+            "slot": 5,
+            "e": {
+              "k": "slot",
+              "i": 2
+            }
+          },
+          {
+            "k": "while",
+            "c": {
+              "k": "cmp",
+              "op": "lt",
+              "l": {
+                "k": "slot",
+                "i": 4
+              },
+              "r": {
+                "k": "len",
+                "a": {
+                  "k": "slot",
+                  "i": 5
+                }
+              }
+            },
+            "phis": [
+              {
+                "k": "phi",
+                "slot": 4,
+                "lhs": 7,
+                "rhs": 3
+              },
+              {
+                "k": "phi",
+                "slot": 5,
+                "lhs": 6,
+                "rhs": 2
+              }
+            ],
+            "body": {
+              "k": "seq",
+              "ss": [
+                {
+                  "k": "assign",
+                  "slot": 6,
+                  "e": {
+                    "k": "set",
+                    "a": {
+                      "k": "slot",
+                      "i": 5
+                    },
+                    "i": {
+                      "k": "slot",
+                      "i": 4
+                    },
+                    "v": {
+                      "k": "bin",
+                      "op": "add",
+                      "l": {
+                        "k": "index",
+                        "a": {
+                          "k": "slot",
+                          "i": 5
+                        },
+                        "i": {
+                          "k": "slot",
+                          "i": 4
+                        }
+                      },
+                      "r": {
+                        "k": "slot",
+                        "i": 1
+                      }
+                    }
+                  }
+                },
+                {
+                  "k": "assign",
+                  "slot": 7,
+                  "e": {
+                    "k": "bin",
+                    "op": "add",
+                    "l": {
+                      "k": "slot",
+                      "i": 4
+                    },
+                    "r": {
+                      "k": "lit",
+                      "num": 1,
+                      "den": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "k": "ret",
+        "es": [
+          {
+            "k": "index",
+            "a": {
+              "k": "slot",
+              "i": 5
+            },
+            "i": {
+              "k": "slot",
+              "i": 0
+            }
+          },
+          {
+            "k": "len",
+            "a": {
+              "k": "slot",
+              "i": 5
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

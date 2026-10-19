@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/nested_array.py:2:11: nested arrays are not supported (the verified subset has one array dimension)
