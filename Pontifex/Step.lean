@@ -53,6 +53,8 @@ end Pontifex
 macro "pontifex_step" "[" ts:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
   `(tactic|
     (simp [$ts,*, Pontifex.Fn.run, Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
+        Pontifex.evalScalars, Pontifex.indexVal, Pontifex.setVal, Pontifex.lenVal,
+        Pontifex.evalScalars, Pontifex.indexVal, Pontifex.setVal, Pontifex.lenVal,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Outcome.toOption,
@@ -60,6 +62,7 @@ macro "pontifex_step" "[" ts:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
         Pontifex.Ops.binary64, Pontifex.Binary64.toFloat, Pontifex.Binary64.ofFloat]
      try (repeat' split)
      all_goals (try (simp_all [$ts,*, Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
+        Pontifex.evalScalars, Pontifex.indexVal, Pontifex.setVal, Pontifex.lenVal,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Env.get?, Pontifex.Env.set,
@@ -75,6 +78,7 @@ macro "pontifex_step" "[" ts:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
 macro "pontifex_step" : tactic =>
   `(tactic|
     (simp [Pontifex.Fn.run, Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
+        Pontifex.evalScalars, Pontifex.indexVal, Pontifex.setVal, Pontifex.lenVal,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Outcome.toOption,
@@ -82,6 +86,7 @@ macro "pontifex_step" : tactic =>
         Pontifex.Ops.binary64, Pontifex.Binary64.toFloat, Pontifex.Binary64.ofFloat]
      try (repeat' split)
      all_goals (try (simp_all [Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
+        Pontifex.evalScalars, Pontifex.indexVal, Pontifex.setVal, Pontifex.lenVal,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Env.get?, Pontifex.Env.set,
@@ -98,6 +103,8 @@ macro "pontifex_step" : tactic =>
 macro "pontifex_step?" "[" ts:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
   `(tactic|
     (simp [$ts,*, Pontifex.Fn.run, Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
+        Pontifex.evalScalars, Pontifex.indexVal, Pontifex.setVal, Pontifex.lenVal,
+        Pontifex.evalScalars, Pontifex.indexVal, Pontifex.setVal, Pontifex.lenVal,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Outcome.toOption,
@@ -117,6 +124,7 @@ macro "pontifex_step?" "[" ts:Lean.Parser.Tactic.simpLemma,* "]" : tactic =>
 macro "pontifex_step?" : tactic =>
   `(tactic|
     (simp [Pontifex.Fn.run, Pontifex.exec, Pontifex.evalS, Pontifex.evalV, Pontifex.Val.asScalar, Pontifex.evalC,
+        Pontifex.evalScalars, Pontifex.indexVal, Pontifex.setVal, Pontifex.lenVal,
         Pontifex.readSlot, Pontifex.checkedDiv, Pontifex.mergePhis,
         Pontifex.applyBackEdges, Pontifex.Outcome.bindEnv,
         Pontifex.Outcome.fromEval, Pontifex.Outcome.toOption,
