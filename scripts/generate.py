@@ -50,9 +50,7 @@ EXAMPLE_FUNCTIONS = {"call_step": "advance"}
 FUEL = 64
 
 
-def check_schema_alignment(
-    config_path: Path | None = None, expected: int | None = None
-) -> None:
+def check_schema_alignment(config_path: Path | None = None, expected: int | None = None) -> None:
     """Fail early when the Python and Lean schema versions diverge."""
     config_path = config_path or (ROOT / "Pontifex" / "Core" / "Config.lean")
     expected = IR_VERSION if expected is None else expected
@@ -73,7 +71,9 @@ def generate_one(stem: str) -> tuple[str, str]:
     path = ROOT / "examples" / f"{stem}.py"
     source = path.read_text()
     translated = translate(
-        source, filename=str(path.relative_to(ROOT)), function=EXAMPLE_FUNCTIONS.get(stem),
+        source,
+        filename=str(path.relative_to(ROOT)),
+        function=EXAMPLE_FUNCTIONS.get(stem),
     )
     namespace = default_namespace(stem)
     conformance = []
@@ -134,6 +134,7 @@ AUDIT_EXAMPLES = [
 def audit_content() -> str:
     """All kernel-checked certificates, audited for disallowed axioms."""
     names: list[str] = []
+
     def add_certificates(translated, namespace: str) -> None:
         for index, callee in enumerate(translated.callees):
             add_certificates(callee, f"{namespace}.Callee{index}")
@@ -147,7 +148,9 @@ def audit_content() -> str:
     for stem in EXAMPLES:
         path = ROOT / "examples" / f"{stem}.py"
         translated = translate(
-            path.read_text(), filename=str(path.relative_to(ROOT)), function=EXAMPLE_FUNCTIONS.get(stem),
+            path.read_text(),
+            filename=str(path.relative_to(ROOT)),
+            function=EXAMPLE_FUNCTIONS.get(stem),
         )
         add_certificates(translated, default_namespace(stem))
     names.extend(AUDIT_EXAMPLES)
@@ -178,14 +181,15 @@ def main(argv: list[str] | None = None) -> int:
         namespace = default_namespace(stem)
         lean_path = ROOT / "Pontifex" / "Generated" / f"{namespace.split('.')[-1]}.lean"
         ir_path = ROOT / "build" / "ir" / f"{stem}.json"
-        lean_path.parent.mkdir(parents=True, exist_ok=True)
-        ir_path.parent.mkdir(parents=True, exist_ok=True)
         if args.check:
             if not lean_path.exists() or lean_path.read_text() != lean:
                 stale.append(str(lean_path))
-            if not ir_path.exists() or ir_path.read_text() != ir_json:
+            # ``build/ir`` is gitignored: a fresh checkout has no cache to compare.
+            if ir_path.exists() and ir_path.read_text() != ir_json:
                 stale.append(str(ir_path))
             continue
+        lean_path.parent.mkdir(parents=True, exist_ok=True)
+        ir_path.parent.mkdir(parents=True, exist_ok=True)
         lean_path.write_text(lean)
         ir_path.write_text(ir_json)
         print(f"wrote {lean_path.relative_to(ROOT)} and {ir_path.relative_to(ROOT)}")

@@ -1,10 +1,10 @@
 """Command line interface.
 
-    python -m pontifex ir       FILE [--function F]       # SSA IR as JSON
-    python -m pontifex emit     FILE [--out PATH]         # Lean module
-    python -m pontifex compile  FILE --out PATH [--json PATH] [--with-samples]
-    python -m pontifex eval     FILE --args "1,2,3,4" [--float]
-    python -m pontifex doctor                              # toolchain discovery
+python -m pontifex ir       FILE [--function F]       # SSA IR as JSON
+python -m pontifex emit     FILE [--out PATH]         # Lean module
+python -m pontifex compile  FILE --out PATH [--json PATH] [--with-samples]
+python -m pontifex eval     FILE --args "1,2,3,4" [--float]
+python -m pontifex doctor                              # toolchain discovery
 """
 
 from __future__ import annotations
@@ -37,6 +37,7 @@ def _parse_args_list(text: str, *, float_mode: bool = False) -> list:
             values.append(Fraction(chunk))
         elif chunk.startswith("0x"):
             from .pipeline import _bits_to_float
+
             values.append(_bits_to_float(chunk))
         elif "/" in chunk:
             values.append(float(Fraction(chunk)))
@@ -88,7 +89,8 @@ def cmd_compile(args: argparse.Namespace) -> int:
         namespace=namespace,
         fuel=args.fuel,
         conformance=conformance,
-        generator=f"python -m pontifex compile {args.file}" + (f" --function {args.function}" if args.function else ""),
+        generator=f"python -m pontifex compile {args.file}"
+        + (f" --function {args.function}" if args.function else ""),
     )
     Path(args.out).write_text(lean)
     if args.json:
@@ -105,6 +107,7 @@ def cmd_eval(args: argparse.Namespace) -> int:
     result = to_option(out)
     if result is None:
         from .interp import Failed
+
         print(f"Failed({out.error})" if isinstance(out, Failed) else type(out).__name__)
         return 1
     print(", ".join(str(v) for v in result))

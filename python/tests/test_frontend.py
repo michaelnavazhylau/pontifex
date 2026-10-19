@@ -217,9 +217,7 @@ def _agrees_with_python(program: str, vectors):
     python_fn = namespace[fn.name]
     for args in vectors:
         raw = python_fn(*args)
-        expected = tuple(
-            Fraction(v) for v in (raw if isinstance(raw, tuple) else (raw,))
-        )
+        expected = tuple(Fraction(v) for v in (raw if isinstance(raw, tuple) else (raw,)))
         assert to_option(run_exact(fn, args)) == expected, args
 
 
@@ -272,7 +270,11 @@ def test_returning_branch_contributes_no_merge_input():
     assert phi.lhs == phi.rhs
     namespace: dict = {}
     exec(textwrap.dedent(program), namespace)  # noqa: S102 - oracle
-    for args in [(Fraction(2), Fraction(1)), (Fraction(2), Fraction(0)), (Fraction(2), Fraction(-1))]:
+    for args in [
+        (Fraction(2), Fraction(1)),
+        (Fraction(2), Fraction(0)),
+        (Fraction(2), Fraction(-1)),
+    ]:
         expected = namespace["f"](*args)
         assert to_option(run_exact(fn, args)) == (expected,)
     _agrees_with_python(program, [(2, 1), (2, -1)])
@@ -346,16 +348,12 @@ def test_variable_assigned_only_on_returning_path_is_not_loop_carried():
 
 def test_unreachable_code_after_return_is_rejected():
     with pytest.raises(UnsupportedError, match="unreachable"):
-        translate(
-            "def f(x: float):\n    return x\n    x = x + 1\n", filename="dead.py"
-        )
+        translate("def f(x: float):\n    return x\n    x = x + 1\n", filename="dead.py")
 
 
 def test_function_must_return_on_every_path():
     with pytest.raises(FrontendError, match="does not return on every path"):
-        translate(
-            "def f(x: float):\n    if x > 0:\n        return x\n", filename="partial.py"
-        )
+        translate("def f(x: float):\n    if x > 0:\n        return x\n", filename="partial.py")
 
 
 # ---------------------------------------------------------------------------
@@ -406,6 +404,4 @@ def test_scalar_and_array_kinds_cannot_be_confused():
     with pytest.raises(UnsupportedError, match="scalar, not an array"):
         translate("def f(x: float):\n    return x[0]\n", filename="s.py")
     with pytest.raises(UnsupportedError, match="array and cannot be used"):
-        translate(
-            "def f(x: float):\n    xs = [1.0]\n    return xs\n", filename="a.py"
-        )
+        translate("def f(x: float):\n    xs = [1.0]\n    return xs\n", filename="a.py")

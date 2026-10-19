@@ -1,4 +1,5 @@
 """Surface desugaring and the core-source transcription used by the certificate."""
+
 from __future__ import annotations
 
 import textwrap

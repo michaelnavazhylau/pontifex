@@ -3,6 +3,7 @@
 These tests invoke Lean's kernel on newly translated programs, not just the
 checked-in physics examples. No sample/native_decide proofs are requested.
 """
+
 from __future__ import annotations
 
 import re
@@ -154,8 +155,11 @@ def check_lean(tmp_path, source: str):
     path = tmp_path / "Certificate.lean"
     path.write_text(source)
     return subprocess.run(
-        ["lake", "env", "lean", str(path)], cwd=ROOT,
-        capture_output=True, text=True, timeout=90,
+        ["lake", "env", "lean", str(path)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=90,
     )
 
 
@@ -181,7 +185,9 @@ def test_new_program_certificates_are_kernel_checked(name, tmp_path):
     axiom_lists = re.findall(r"depends on axioms: \[([^\]]*)\]", result.stdout)
     assert len(axiom_lists) == 3, result.stdout
     for axioms in axiom_lists:
-        assert set(axioms.split(", ")) <= {"propext", "Classical.choice", "Quot.sound"}, result.stdout
+        assert set(axioms.split(", ")) <= {"propext", "Classical.choice", "Quot.sound"}, (
+            result.stdout
+        )
 
 
 @pytest.mark.slow
@@ -229,7 +235,9 @@ def test_corrupt_codegen_is_rejected_by_kernel(mutation, tmp_path):
 
 @pytest.mark.slow
 def test_float_backend_specialization_requires_no_float_computation(tmp_path):
-    text = compile_source(textwrap.dedent(PROGRAMS["loop_then_continuation"]), namespace="Certificate").lean_source
+    text = compile_source(
+        textwrap.dedent(PROGRAMS["loop_then_continuation"]), namespace="Certificate"
+    ).lean_source
     text += """
 example (fuel : Nat) (args : List Float) :
     Certificate.fCompiled Pontifex.Ops.float fuel args =

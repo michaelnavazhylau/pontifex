@@ -3,7 +3,7 @@
 PY ?= python3
 LAKE ?= lake
 
-.PHONY: all lean gen test check clean fmt corpus rejections float-boundaries
+.PHONY: all lean gen test check clean fmt fmt-check corpus rejections float-boundaries
 
 all: lean test
 
@@ -27,8 +27,8 @@ corpus:
 rejections:
 	$(PY) scripts/update_rejections.py
 
-## CI-style: generated artifacts fresh + Python tests + Lean build + audit
-check: gen
+## CI-style: format + generated artifacts fresh + Python tests + Lean build + audit
+check: fmt-check gen
 	$(PY) scripts/generate.py --check
 	$(PY) scripts/update_rejections.py --check
 	$(LAKE) build
@@ -39,9 +39,12 @@ check: gen
 test:
 	uv run pytest
 
+fmt-check:
+	uv run ruff format --check python scripts
+
 fmt:
-	ruff format python 2>/dev/null || true
-	ruff check --fix python 2>/dev/null || true
+	uv run ruff format python scripts
+	uv run ruff check --fix python scripts 2>/dev/null || true
 
 clean:
 	rm -rf .lake/build build/ir/*.json .pytest_cache python/.pytest_cache

@@ -1,4 +1,5 @@
 """P0/T2: generated artifacts must not smuggle in axioms or untrusted proofs."""
+
 from __future__ import annotations
 
 import re

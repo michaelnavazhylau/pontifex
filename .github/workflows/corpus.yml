@@ -1,0 +1,99 @@
+name: Corpora
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      corpus-samples:
+        description: Input vectors per differential-corpus program
+        type: number
+        default: 32
+      float-samples:
+        description: Random binary64 patterns for the Float boundary corpus
+        type: number
+        default: 100000
+      float-arithmetic:
+        description: Random arithmetic cases for the Float boundary corpus
+        type: number
+        default: 4096
+  workflow_call:
+    inputs:
+      corpus-samples:
+        description: Input vectors per differential-corpus program
+        type: number
+        default: 32
+      float-samples:
+        description: Random binary64 patterns for the Float boundary corpus
+        type: number
+        default: 100000
+      float-arithmetic:
+        description: Random arithmetic cases for the Float boundary corpus
+        type: number
+        default: 4096
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corpora-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  differential:
+    name: Differential corpus (${{ inputs.corpus-samples || 32 }} samples)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Install Lean and build the conformance runner
+        uses: leanprover/lean-action@v1.6.2
+        with:
+          auto-config: false
+          build: true
+          use-mathlib-cache: false
+
+      - name: Install dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Compare CPython, exact IR, binary64 IR, and Lean
+        run: uv run python scripts/run_corpus.py --samples "${{ inputs.corpus-samples || 32 }}"
+
+  float-boundaries:
+    name: Float boundaries (${{ inputs.float-samples || 100000 }} patterns)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Install Lean and build the conformance runner
+        uses: leanprover/lean-action@v1.6.2
+        with:
+          auto-config: false
+          build: true
+          use-mathlib-cache: false
+
+      - name: Install dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Check bit-exact binary64 transport and arithmetic
+        run: >-
+          uv run python scripts/check_float_boundaries.py
+          --samples "${{ inputs.float-samples || 100000 }}"
+          --arithmetic "${{ inputs.float-arithmetic || 4096 }}"

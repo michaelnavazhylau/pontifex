@@ -171,7 +171,9 @@ def assigned_names(nodes: Iterable[ast.stmt]) -> set[str]:
                     out.add(target.id)
         elif isinstance(node, ast.AnnAssign):
             if not isinstance(node.target, ast.Name) or node.value is None:
-                raise UnsupportedError("only annotated assignments with a value are supported", node)
+                raise UnsupportedError(
+                    "only annotated assignments with a value are supported", node
+                )
             out.add(node.target.id)
         elif isinstance(node, ast.AugAssign):
             if not isinstance(node.target, ast.Name):
@@ -200,9 +202,14 @@ def assigned_names(nodes: Iterable[ast.stmt]) -> set[str]:
 
 class _Lowerer:
     def __init__(
-        self, filename: str, fn_name: str, params: Sequence[str], *,
+        self,
+        filename: str,
+        fn_name: str,
+        params: Sequence[str],
+        *,
         resolve: Callable[[ast.Call], Translated],
-        function_names: set[str], local_names: set[str],
+        function_names: set[str],
+        local_names: set[str],
     ):
         self.resolve = resolve
         self.function_names = function_names
@@ -263,7 +270,7 @@ class _Lowerer:
                 if not math.isfinite(value):
                     raise self.err(node, "non-finite float literals are not supported")
                 num, den = value.as_integer_ratio()
-                bits, = struct.unpack(">Q", struct.pack(">d", value))
+                (bits,) = struct.unpack(">Q", struct.pack(">d", value))
                 return Lit(Fraction(num, den), bits)
             raise self.err(node, f"literal of type {type(value).__name__} is not supported")
         if isinstance(node, ast.BinOp):
@@ -271,9 +278,7 @@ class _Lowerer:
                 return self.pow(node)
             op = BINOP_NAMES.get(type(node.op))
             if op is None:
-                raise self.err(
-                    node, f"binary operator '{type(node.op).__name__}' is not supported"
-                )
+                raise self.err(node, f"binary operator '{type(node.op).__name__}' is not supported")
             return Bin(op, self.expr(node.left), self.expr(node.right))
         if isinstance(node, ast.UnaryOp):
             if isinstance(node.op, ast.USub):
@@ -284,7 +289,9 @@ class _Lowerer:
         if isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name):
                 if node.func.id in self.local_names:
-                    raise self.err(node, f"callable '{node.func.id}' is shadowed by a local variable")
+                    raise self.err(
+                        node, f"callable '{node.func.id}' is shadowed by a local variable"
+                    )
                 if node.func.id in self.function_names:
                     raise self.err(
                         node,
@@ -366,9 +373,7 @@ class _Lowerer:
                 raise self.err(node, "chained comparisons are not supported")
             op = CMP_NAMES.get(type(node.ops[0]))
             if op is None:
-                raise self.err(
-                    node, f"comparison '{type(node.ops[0]).__name__}' is not supported"
-                )
+                raise self.err(node, f"comparison '{type(node.ops[0]).__name__}' is not supported")
             return Cmp(op, self.expr(node.left), self.expr(node.comparators[0]))
         if isinstance(node, ast.BoolOp):
             parts = [self.cond(v) for v in node.values]
@@ -381,8 +386,9 @@ class _Lowerer:
         if isinstance(node, ast.Constant) and isinstance(node.value, bool):
             return Where(node.value)
         raise self.err(
-            node, f"'{type(node).__name__}' is not a supported condition "
-            "(use comparisons combined with and/or/not)"
+            node,
+            f"'{type(node).__name__}' is not a supported condition "
+            "(use comparisons combined with and/or/not)",
         )
 
     # -- arrays ------------------------------------------------------------
@@ -401,8 +407,7 @@ class _Lowerer:
             if isinstance(element, (ast.List, ast.Tuple, ast.Set, ast.Dict)):
                 raise self.err(
                     element,
-                    "nested arrays are not supported "
-                    "(the verified subset has one array dimension)",
+                    "nested arrays are not supported (the verified subset has one array dimension)",
                 )
             items.append(self.expr(element))
         return ArrayLit(tuple(items))
@@ -420,9 +425,7 @@ class _Lowerer:
                     "or measured",
                 )
             return Slot(slot)
-        raise self.err(
-            node, "only a list literal or an array variable can be indexed or measured"
-        )
+        raise self.err(node, "only a list literal or an array variable can be indexed or measured")
 
     # -- statements --------------------------------------------------------
 
@@ -437,7 +440,10 @@ class _Lowerer:
             if isinstance(node, ast.Return):
                 if self.is_user_call(node.value):
                     if self.result_arity not in (None, 1):
-                        raise self.err(node, "inlined calls return one scalar, but an earlier return has a different arity")
+                        raise self.err(
+                            node,
+                            "inlined calls return one scalar, but an earlier return has a different arity",
+                        )
                     self.result_arity = 1
                     out.append(self.call(node.value, None))
                 else:
@@ -467,7 +473,8 @@ class _Lowerer:
 
     def is_user_call(self, node: ast.AST | None) -> bool:
         return (
-            isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
             and node.func.id in self.function_names
         )
 
@@ -477,11 +484,14 @@ class _Lowerer:
         if node.func.id in self.local_names:
             raise self.err(node, f"callable '{node.func.id}' is shadowed by a local variable")
         if node.keywords or any(isinstance(a, ast.Starred) for a in node.args):
-            raise self.err(node, "inlined calls require positional arguments (no keywords or unpacking)")
+            raise self.err(
+                node, "inlined calls require positional arguments (no keywords or unpacking)"
+            )
         callee = self.resolve(node)
         if len(node.args) != callee.fn.arity:
             raise self.err(
-                node, f"call to '{callee.fn.name}' expects {callee.fn.arity} argument(s), got {len(node.args)}",
+                node,
+                f"call to '{callee.fn.name}' expects {callee.fn.arity} argument(s), got {len(node.args)}",
             )
         args = tuple(self.expr(arg) for arg in node.args)
         self.callees[callee.fn.name] = callee
@@ -513,9 +523,7 @@ class _Lowerer:
 
     def subscript_store(self, target: ast.Subscript, value_node: ast.expr) -> Stmt:
         if not isinstance(target.value, ast.Name):
-            raise self.err(
-                target, "only subscript assignment to a named array is supported"
-            )
+            raise self.err(target, "only subscript assignment to a named array is supported")
         if isinstance(target.slice, ast.Slice):
             raise self.err(target, "slice assignment is not supported")
         name = target.value.id
@@ -731,7 +739,9 @@ def _check_signature(fn: ast.FunctionDef, filename: str) -> list[str]:
     return params
 
 
-def translate(source: str, *, filename: str = "<string>", function: str | None = None) -> Translated:
+def translate(
+    source: str, *, filename: str = "<string>", function: str | None = None
+) -> Translated:
     """Translate one function from Python source into the SSA IR."""
     try:
         module = ast.parse(source, filename=filename)
@@ -740,13 +750,17 @@ def translate(source: str, *, filename: str = "<string>", function: str | None =
 
     functions: list[ast.FunctionDef] = []
     for node in module.body:
-        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(
-            node.value.value, str
+        if (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
         ):
             continue  # module docstring
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             raise UnsupportedError(
-                "imports are not supported: translated programs must be self-contained", node, filename
+                "imports are not supported: translated programs must be self-contained",
+                node,
+                filename,
             )
         if isinstance(node, ast.FunctionDef):
             functions.append(node)
@@ -776,7 +790,9 @@ def translate(source: str, *, filename: str = "<string>", function: str | None =
     definitions: dict[str, ast.FunctionDef] = {}
     for definition in functions:
         if definition.name in definitions:
-            raise FrontendError(f"duplicate function definition '{definition.name}'", definition, filename)
+            raise FrontendError(
+                f"duplicate function definition '{definition.name}'", definition, filename
+            )
         definitions[definition.name] = definition
     cache: dict[str, Translated] = {}
     active: list[str] = []
@@ -785,30 +801,46 @@ def translate(source: str, *, filename: str = "<string>", function: str | None =
         name = call.func.id
         if name in active:
             raise UnsupportedError(
-                "recursive calls are not supported: " + " -> ".join(active + [name]), call, filename,
+                "recursive calls are not supported: " + " -> ".join(active + [name]),
+                call,
+                filename,
             )
         helper = definitions[name]
         # This first slice deliberately has no callee control flow or arrays.
         # The caller may still contain both; its existing SSA rules are unchanged.
         for statement in helper.body:
-            if not isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Return, ast.Pass, ast.Expr)):
+            if not isinstance(
+                statement,
+                (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Return, ast.Pass, ast.Expr),
+            ):
                 raise UnsupportedError(
                     f"inlined helper '{name}' must have a straight-line body; callee control flow is deferred",
-                    statement, filename,
+                    statement,
+                    filename,
                 )
         if not helper.body or not isinstance(helper.body[-1], ast.Return):
-            raise UnsupportedError(f"inlined helper '{name}' must end with one scalar return", helper, filename)
+            raise UnsupportedError(
+                f"inlined helper '{name}' must end with one scalar return", helper, filename
+            )
         if isinstance(helper.body[-1].value, ast.Tuple):
-            raise UnsupportedError(f"inlined helper '{name}' must return one scalar; tuple results are deferred", helper.body[-1], filename)
+            raise UnsupportedError(
+                f"inlined helper '{name}' must return one scalar; tuple results are deferred",
+                helper.body[-1],
+                filename,
+            )
         for statement in helper.body:
             # Annotations are advisory, not runtime array operations.
             roots = [statement]
             if isinstance(statement, ast.AnnAssign):
-                roots = [statement.target] + ([statement.value] if statement.value is not None else [])
+                roots = [statement.target] + (
+                    [statement.value] if statement.value is not None else []
+                )
             for node in (node for root in roots for node in ast.walk(root)):
                 if isinstance(node, (ast.List, ast.Subscript)):
                     raise UnsupportedError(
-                        f"inlined helper '{name}' supports scalar arithmetic only; arrays are deferred", node, filename,
+                        f"inlined helper '{name}' supports scalar arithmetic only; arrays are deferred",
+                        node,
+                        filename,
                     )
         return compile_function(helper)
 
@@ -819,12 +851,18 @@ def translate(source: str, *, filename: str = "<string>", function: str | None =
         try:
             params = _check_signature(definition, filename)
             local_names = set(params) | {
-                node.id for statement in definition.body for node in ast.walk(statement)
+                node.id
+                for statement in definition.body
+                for node in ast.walk(statement)
                 if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
             }
             lowerer = _Lowerer(
-                filename, definition.name, params, resolve=resolve,
-                function_names=set(definitions), local_names=local_names,
+                filename,
+                definition.name,
+                params,
+                resolve=resolve,
+                function_names=set(definitions),
+                local_names=local_names,
             )
             body = lowerer.block(definition.body)
             ret_exprs = _return_exprs(body)
@@ -832,19 +870,27 @@ def translate(source: str, *, filename: str = "<string>", function: str | None =
                 raise FrontendError(
                     f"function '{definition.name}' does not return on every path; "
                     "implicit fall-through (returning None) is not supported",
-                    definition, filename,
+                    definition,
+                    filename,
                 )
             result_names = tuple(
                 lowerer.slot_names[e.index]
-                if isinstance(e, Slot) and e.index < len(lowerer.slot_names) else str(e)
+                if isinstance(e, Slot) and e.index < len(lowerer.slot_names)
+                else str(e)
                 for e in ret_exprs
             )
             fn = Fn(
-                name=definition.name, params=tuple(params), slot_names=tuple(lowerer.slot_names),
-                body=body, result_names=result_names,
+                name=definition.name,
+                params=tuple(params),
+                slot_names=tuple(lowerer.slot_names),
+                body=body,
+                result_names=result_names,
             )
             translated = Translated(
-                fn=fn, source=source, filename=filename, function_name=definition.name,
+                fn=fn,
+                source=source,
+                filename=filename,
+                function_name=definition.name,
                 callees=tuple(lowerer.callees.values()),
             )
             cache[definition.name] = translated

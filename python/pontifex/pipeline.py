@@ -75,7 +75,8 @@ def compile_file(
         namespace=ns,
         fuel=fuel,
         conformance=conformance,
-        generator=f"python -m pontifex compile {path}" + (f" --function {function}" if function else ""),
+        generator=f"python -m pontifex compile {path}"
+        + (f" --function {function}" if function else ""),
     )
 
 
@@ -103,6 +104,7 @@ def load_python_function(source: str, name: str, filename: str = "<string>") -> 
 def observe_python(fn: Callable[..., Any], args: Sequence[Any]) -> Outcome:
     """Map supported CPython outcomes to the same observable language results."""
     from .interp import Failed
+
     try:
         value = fn(*args)
         return Returned(value if isinstance(value, tuple) else (value,))
@@ -176,6 +178,7 @@ def run_lean(
         ir_path.write_text(ir_json_text)
         if mode == "float":
             from .interp import float_bits
+
             wire = [[float_bits(float(v)) for v in row] for row in inputs]
         elif mode == "rat":
             wire = [_wire_rats(v) for v in inputs]
@@ -205,10 +208,9 @@ def _decode_outcome(item: dict[str, Any]) -> Outcome:
     if kind == "outOfFuel":
         return OutOfFuel()
     if kind == "fellThrough":
-        return FellThrough({
-            i: _decode_value(value)
-            for i, value in enumerate(item["slots"]) if value is not None
-        })
+        return FellThrough(
+            {i: _decode_value(value) for i, value in enumerate(item["slots"]) if value is not None}
+        )
     return Returned(tuple(_decode_value(v) for v in item["vals"]))
 
 
@@ -259,13 +261,12 @@ def _compare_values(a: Any, b: Any) -> str | None:
     return None
 
 
-def compare_outcomes(
-    left: Outcome, right: Outcome
-) -> str | None:
+def compare_outcomes(left: Outcome, right: Outcome) -> str | None:
     """Return ``None`` when two outcomes agree, else a short explanation."""
     lv, rv = to_option(left), to_option(right)
     if lv is None or rv is None:
         from .interp import Failed, FellThrough
+
         if type(left) is type(right):
             if isinstance(left, Failed) and left.error != right.error:
                 return f"failure mismatch: {left.error} vs {right.error}"

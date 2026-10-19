@@ -1,0 +1,31 @@
+name: Nightly
+
+on:
+  schedule:
+    # Daily at 04:17 UTC, off the hour to avoid the busiest runner window.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  lean:
+    name: Lean
+    uses: ./.github/workflows/lean.yml
+
+  python:
+    name: Python
+    uses: ./.github/workflows/python.yml
+
+  corpora:
+    name: Extended corpora
+    uses: ./.github/workflows/corpus.yml
+    with:
+      corpus-samples: 256
+      float-samples: 1000000
+      float-arithmetic: 32768

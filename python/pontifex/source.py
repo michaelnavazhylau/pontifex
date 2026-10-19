@@ -240,7 +240,7 @@ class _Desugar:
                 if not math.isfinite(value):
                     raise self.err(node, "non-finite float literals are not supported")
                 num, den = value.as_integer_ratio()
-                bits, = struct.unpack(">Q", struct.pack(">d", value))
+                (bits,) = struct.unpack(">Q", struct.pack(">d", value))
                 return Lit(Fraction(num, den), bits)
             raise self.err(node, f"literal of type {type(value).__name__} is not supported")
         if isinstance(node, ast.BinOp):
@@ -312,7 +312,11 @@ class _Desugar:
         return tuple(self.stmt(node) for node in nodes)
 
     def call(self, value: ast.expr, target: int | None) -> InlineCall | None:
-        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id in self.callees:
+        if (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Name)
+            and value.func.id in self.callees
+        ):
             return InlineCall(target, value.func.id, tuple(self.expr(arg) for arg in value.args))
         return None
 
@@ -329,7 +333,9 @@ class _Desugar:
             target = node.targets[0]
             if isinstance(target, ast.Subscript):
                 if not isinstance(target.value, ast.Name):
-                    raise self.err(target, "only subscript assignment to a named array is supported")
+                    raise self.err(
+                        target, "only subscript assignment to a named array is supported"
+                    )
                 var = self.ids(target.value.id)
                 return Assign(
                     var,
@@ -441,10 +447,7 @@ def _stmt(s: SStmt, callees: dict[str, str]) -> str:
         callee = callees[s.callee]
         target = "none" if s.target is None else f"(some {s.target})"
         args = ", ".join(_expr(arg) for arg in s.args)
-        return (
-            f"(.inlineCall {target} {callee}Source.paramIds.length "
-            f"{callee}IR.body [{args}])"
-        )
+        return f"(.inlineCall {target} {callee}Source.paramIds.length {callee}IR.body [{args}])"
     if isinstance(s, Skip):
         return ".skip"
     if isinstance(s, Assign):

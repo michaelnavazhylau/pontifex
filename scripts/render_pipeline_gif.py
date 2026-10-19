@@ -37,6 +37,7 @@ FONT_DIR = Path("/System/Library/Fonts/Supplemental")
 if not (FONT_DIR / "Andale Mono.ttf").exists():  # portable fallback
     FONT_DIR = Path("/usr/share/fonts/truetype/dejavu")
 
+
 def font(name: str, size: int):
     candidates = {
         "mono": ["Andale Mono.ttf", "DejaVuSansMono.ttf"],
@@ -48,6 +49,7 @@ def font(name: str, size: int):
         if path.exists():
             return ImageFont.truetype(str(path), size)
     return ImageFont.load_default(size=size)
+
 
 F_TITLE = font("bold", 36)
 F_SUB = font("body", 18)
@@ -210,7 +212,13 @@ def render(t: float) -> Image.Image:
     layer = new_layer()
     text(layer, (42, 26), "Pontifex", F_TITLE, TEXT)
     text(layer, (212, 38), "Python → Lean 4 verification bridge", F_SUB, MUTED)
-    text(layer, (44, 72), "A kernel-checked translation pipeline for a scalar Python subset", F_BODY, FAINT)
+    text(
+        layer,
+        (44, 72),
+        "A kernel-checked translation pipeline for a scalar Python subset",
+        F_BODY,
+        FAINT,
+    )
     composite(img, layer, a)
 
     badges = [("no Mathlib", CYAN), ("no ring tactic", PINK), ("no sorry", GREEN)]
@@ -235,7 +243,14 @@ def render(t: float) -> Image.Image:
             outline = lerp_color(BORDER, color, flash)
             width = 2 if flash > 0.05 else 1
             layer = new_layer()
-            box(layer, (x, top, x + bw, top + bh), fill=PANEL, outline=outline, width=width, radius=12)
+            box(
+                layer,
+                (x, top, x + bw, top + bh),
+                fill=PANEL,
+                outline=outline,
+                width=width,
+                radius=12,
+            )
             draw = ImageDraw.Draw(layer)
             draw.rectangle((x + 1, top + 1, x + 5, top + bh - 1), fill=color)
             text(layer, (x + 16, top + 16), title, F_BOX, TEXT)
@@ -248,7 +263,9 @@ def render(t: float) -> Image.Image:
             layer = new_layer()
             x0 = x + bw + 4
             x1 = x + bw + gap - 4
-            arrow(layer, (x0, top + bh // 2), (x1, top + bh // 2), color=FAINT, width=2, progress=pa)
+            arrow(
+                layer, (x0, top + bh // 2), (x1, top + bh // 2), color=FAINT, width=2, progress=pa
+            )
             composite(img, layer, pa)
 
     # ---- verification lane ----------------------------------------------
@@ -266,13 +283,23 @@ def render(t: float) -> Image.Image:
         x = vleft + index * (vw + vgap)
         flash = max(0.0, 1.0 - (t - start) / 0.7)
         layer = new_layer()
-        box(layer, (x, vtop, x + vw, vtop + vh), fill=PANEL2,
-            outline=lerp_color(BORDER, GREEN, flash), width=2 if flash > 0.05 else 1)
+        box(
+            layer,
+            (x, vtop, x + vw, vtop + vh),
+            fill=PANEL2,
+            outline=lerp_color(BORDER, GREEN, flash),
+            width=2 if flash > 0.05 else 1,
+        )
         check(layer, x + 14, vtop + 16, GREEN)
         text(layer, (x + 34, vtop + 12), name, F_MONO_S, TEXT)
         text(layer, (x + 14, vtop + 40), desc, F_SMALL, MUTED)
-        box(layer, (x + vw - 86, vtop + 58, x + vw - 12, vtop + 80), fill=(14, 45, 40, 255),
-            outline=(30, 90, 75, 255), radius=10)
+        box(
+            layer,
+            (x + vw - 86, vtop + 58, x + vw - 12, vtop + 80),
+            fill=(14, 45, 40, 255),
+            outline=(30, 90, 75, 255),
+            radius=10,
+        )
         text(layer, (x + vw - 49, vtop + 69), tag, F_MONO_XS, GREEN, anchor="mm")
         composite(img, layer, la)
 
@@ -284,7 +311,9 @@ def render(t: float) -> Image.Image:
         dash_y0, dash_y1 = top + bh + 4, vtop - 4
         y = dash_y0
         while y < dash_y0 + (dash_y1 - dash_y0) * ca:
-            ImageDraw.Draw(layer).line((sx, y, sx, min(y + 5, dash_y1)), fill=(60, 78, 110, 255), width=1)
+            ImageDraw.Draw(layer).line(
+                (sx, y, sx, min(y + 5, dash_y1)), fill=(60, 78, 110, 255), width=1
+            )
             y += 9
         composite(img, layer, ca)
 
@@ -293,18 +322,50 @@ def render(t: float) -> Image.Image:
     layer = new_layer()
     box(layer, (40, 384, 590, 478), fill=(38, 28, 14, 255), outline=(120, 82, 24, 255), radius=12)
     text(layer, (56, 398), "TRUSTED + TESTED", F_LABEL, AMBER)
-    text(layer, (56, 422), "ast.parse · surface desugaring · AST transcription", F_SMALL, (226, 200, 150, 255))
-    text(layer, (56, 444), "native Float/CPU rounding · CPython oracle", F_SMALL, (226, 200, 150, 255))
-    text(layer, (56, 462), "differential harness catches drift here", F_MONO_XS, (184, 150, 96, 255))
+    text(
+        layer,
+        (56, 422),
+        "ast.parse · surface desugaring · AST transcription",
+        F_SMALL,
+        (226, 200, 150, 255),
+    )
+    text(
+        layer,
+        (56, 444),
+        "native Float/CPU rounding · CPython oracle",
+        F_SMALL,
+        (226, 200, 150, 255),
+    )
+    text(
+        layer, (56, 462), "differential harness catches drift here", F_MONO_XS, (184, 150, 96, 255)
+    )
     composite(img, layer, trust_alpha)
 
     kernel_alpha = fade(t, 4.85, 0.55)
     layer = new_layer()
     box(layer, (610, 384, 1160, 478), fill=(12, 40, 33, 255), outline=(28, 96, 77, 255), radius=12)
     text(layer, (626, 398), "KERNEL-CHECKED", F_LABEL, GREEN)
-    text(layer, (626, 422), "lowering agreement · code ↔ IR · outcomes & fuel", F_SMALL, (170, 230, 205, 255))
-    text(layer, (626, 444), "physics specs · Float bit/value tiers · axiom audit", F_SMALL, (170, 230, 205, 255))
-    text(layer, (626, 462), "every certificate is replayed by lake build", F_MONO_XS, (120, 186, 160, 255))
+    text(
+        layer,
+        (626, 422),
+        "lowering agreement · code ↔ IR · outcomes & fuel",
+        F_SMALL,
+        (170, 230, 205, 255),
+    )
+    text(
+        layer,
+        (626, 444),
+        "physics specs · Float bit/value tiers · axiom audit",
+        F_SMALL,
+        (170, 230, 205, 255),
+    )
+    text(
+        layer,
+        (626, 462),
+        "every certificate is replayed by lake build",
+        F_MONO_XS,
+        (120, 186, 160, 255),
+    )
     composite(img, layer, kernel_alpha)
 
     # ---- code panes ------------------------------------------------------
@@ -365,9 +426,7 @@ def main() -> None:
     duration = 8.6
     raw = [render(i / fps) for i in range(int(duration * fps) + 1)]
     palette_source = raw[-1].quantize(colors=64, method=Image.Quantize.MEDIANCUT)
-    frames = [
-        f.quantize(palette=palette_source, dither=Image.Dither.NONE) for f in raw
-    ]
+    frames = [f.quantize(palette=palette_source, dither=Image.Dither.NONE) for f in raw]
     gif_path = OUT / "pipeline.gif"
     frames[0].save(
         gif_path,

@@ -1,4 +1,5 @@
 """P0/T4: the differential corpus and its manifest."""
+
 from __future__ import annotations
 
 import json

@@ -89,16 +89,12 @@ def sample_value(spec: dict, rng: random.Random) -> Fraction:
 
 def sample_vectors(entry: dict, count: int) -> list[list[Fraction]]:
     rng = random.Random(entry["file"])
-    return [
-        [sample_value(spec, rng) for spec in entry["params"]]
-        for _ in range(count)
-    ]
+    return [[sample_value(spec, rng) for spec in entry["params"]] for _ in range(count)]
 
 
 def _values(outcome):
     values = to_option(outcome)
     return None if values is None else tuple(values)
-
 
 
 def run(samples: int, exe: Path, verbose: bool) -> Stats:

@@ -8,6 +8,7 @@ No finite mismatch or mismatched failure can be allowlisted.
 
     uv run python scripts/check_float_boundaries.py
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,20 +25,34 @@ sys.path.insert(0, str(ROOT / "python"))
 from pontifex.frontend import translate
 from pontifex.interp import Returned, float_bits, run_float
 from pontifex.pipeline import (
-    compare_outcomes, find_lean_exe, load_python_function, observe_python, run_lean,
+    compare_outcomes,
+    find_lean_exe,
+    load_python_function,
+    observe_python,
+    run_lean,
 )
 
 EDGE_BITS = [
-    0x0000000000000000, 0x8000000000000000,  # both zero signs
-    0x0000000000000001, 0x8000000000000001,  # smallest subnormals
-    0x000fffffffffffff, 0x800fffffffffffff,  # largest subnormals
-    0x0010000000000000, 0x8010000000000000,  # smallest normals
-    0x7fefffffffffffff, 0xffefffffffffffff,  # largest finite
-    0x3ff0000000000000, 0xbff0000000000000,  # +/-1
-    0x3ff0000000000001, 0x3fefffffffffffff,  # neighbors of 1
-    0x7ff0000000000000, 0xfff0000000000000,  # infinities
-    0x7ff8000000000000, 0xfff8000000000001,  # quiet NaN payload/sign
-    0x7ff0000000000001, 0xfff0000000000042,  # signaling NaNs
+    0x0000000000000000,
+    0x8000000000000000,  # both zero signs
+    0x0000000000000001,
+    0x8000000000000001,  # smallest subnormals
+    0x000FFFFFFFFFFFFF,
+    0x800FFFFFFFFFFFFF,  # largest subnormals
+    0x0010000000000000,
+    0x8010000000000000,  # smallest normals
+    0x7FEFFFFFFFFFFFFF,
+    0xFFEFFFFFFFFFFFFF,  # largest finite
+    0x3FF0000000000000,
+    0xBFF0000000000000,  # +/-1
+    0x3FF0000000000001,
+    0x3FEFFFFFFFFFFFFF,  # neighbors of 1
+    0x7FF0000000000000,
+    0xFFF0000000000000,  # infinities
+    0x7FF8000000000000,
+    0xFFF8000000000001,  # quiet NaN payload/sign
+    0x7FF0000000000001,
+    0xFFF0000000000042,  # signaling NaNs
 ]
 
 
@@ -67,7 +82,7 @@ def check(samples=100000, arithmetic=4096, exe=None):
     values.extend(from_bits(rng.getrandbits(64)) for _ in range(samples))
     edge_pairs = [[from_bits(x), from_bits(y)] for x in EDGE_BITS for y in EDGE_BITS]
     pairs = edge_pairs + [[rng.choice(values), rng.choice(values)] for _ in range(arithmetic)]
-    unary = [[v] for v in values[:arithmetic + len(EDGE_BITS)]]
+    unary = [[v] for v in values[: arithmetic + len(EDGE_BITS)]]
     programs = [
         ("identity", "def f(x):\n    return x\n", [[v] for v in values]),
         ("add", "def f(x, y):\n    return x + y\n", pairs),
@@ -77,7 +92,11 @@ def check(samples=100000, arithmetic=4096, exe=None):
         ("power", "def f(x):\n    return x ** 3\n", unary),
         ("power_zero", "def f(x):\n    return x ** 0\n", unary),
         ("abs_neg", "def f(x):\n    return abs(x), -x\n", unary),
-        ("comparisons", "def f(x, y):\n    r = 0\n    if x == y:\n        r = 1\n    if x != y:\n        r = 2\n    if x < y:\n        r = 3\n    if x <= y:\n        r = 4\n    if x > y:\n        r = 5\n    if x >= y:\n        r = 6\n    return r\n", pairs),
+        (
+            "comparisons",
+            "def f(x, y):\n    r = 0\n    if x == y:\n        r = 1\n    if x != y:\n        r = 2\n    if x < y:\n        r = 3\n    if x <= y:\n        r = 4\n    if x > y:\n        r = 5\n    if x >= y:\n        r = 6\n    return r\n",
+            pairs,
+        ),
     ]
     # Test decimal spelling -> AST -> exact rational + original bits -> Lean.
     for bits in EDGE_BITS:
@@ -107,16 +126,24 @@ def check(samples=100000, arithmetic=4096, exe=None):
                 diff = compare_outcomes(python, actual)
                 if diff is None:
                     continue
-                if permitted_nan_difference(python, actual, transport=name in {"identity", "literal", "abs_neg"},
-                    allow_nan="computed_nan_payload" in rules):
+                if permitted_nan_difference(
+                    python,
+                    actual,
+                    transport=name in {"identity", "literal", "abs_neg"},
+                    allow_nan="computed_nan_payload" in rules,
+                ):
                     allowed += 1
                 else:
                     mismatch_count += 1
                     if len(mismatches) < 20:
-                        mismatches.append(f"{name}[{index}] {label}, args bits={[float_bits(a) for a in args]}: {diff}")
+                        mismatches.append(
+                            f"{name}[{index}] {label}, args bits={[float_bits(a) for a in args]}: {diff}"
+                        )
         if name != "literal":
             print(f"{name}: {len(vectors)} vectors")
-    print(f"Float boundaries: {count} comparisons; {mismatch_count} mismatches; {allowed} allowlisted")
+    print(
+        f"Float boundaries: {count} comparisons; {mismatch_count} mismatches; {allowed} allowlisted"
+    )
     for rule, reason in rules.items():
         print(f"  allowlist {rule}: {reason}")
     for mismatch in mismatches:

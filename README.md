@@ -307,10 +307,27 @@ access, `min`/`max`, conditional expressions, or tuple unpacking.
 0 unallowlisted mismatches (451 explicitly counted computed-NaN exemptions)
 ```
 
-`make check` wires together generated-artifact freshness, the build-time axiom
-audit, rejection snapshot checks, the differential corpus, the Float boundary
-run, and the pytest suite. The diagram in this README is generated from
-`scripts/render_pipeline_gif.py` (dev dependency: Pillow).
+`make check` wires together formatting, generated-artifact freshness, the
+build-time axiom audit, rejection snapshot checks, the differential corpus, the
+Float boundary run, and the pytest suite. The diagram in this README is
+generated from `scripts/render_pipeline_gif.py` (dev dependency: Pillow).
+
+### Continuous integration
+
+The workflows in `.github/workflows/` split the checks by domain so a failure
+points at one layer:
+
+| Workflow | Trigger | Checks |
+| --- | --- | --- |
+| `lean.yml` | push to `main`, PR | `lake build` (including the generated axiom audit) plus a full `leanchecker` kernel replay |
+| `python.yml` | push to `main`, PR | `ruff format --check`, generated-artifact and rejection-snapshot freshness, and the full pytest suite on Python 3.10 and 3.13 |
+| `corpus.yml` | push to `main`, PR | 28-program differential corpus and the 100,000-pattern binary64 boundary corpus |
+| `nightly.yml` | daily 04:17 UTC | Re-runs all three with 256 corpus samples, 1,000,000 float patterns, and 32,768 arithmetic cases |
+
+All workflows have read-only repository permissions and use the committed
+`uv.lock` and `lean-toolchain` pins. `corpus.yml` and the domain workflows are
+also reusable (`workflow_call`), which is how the nightly job requests larger
+sample counts.
 
 ---
 

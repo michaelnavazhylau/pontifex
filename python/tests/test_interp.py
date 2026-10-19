@@ -47,18 +47,14 @@ def test_source_and_ir_agree_exactly():
 
 def test_loop_exact():
     fn = translate_example("free_fall_loop").fn
-    out = run_exact(
-        fn, [Fraction(1), Fraction(0), Fraction(0), Fraction(1), Fraction(1, 2)]
-    )
+    out = run_exact(fn, [Fraction(1), Fraction(0), Fraction(0), Fraction(1), Fraction(1, 2)])
     assert out.values == (Fraction(3, 4), Fraction(1))
 
 
 def test_loop_out_of_fuel():
     fn = translate_example("free_fall_loop").fn
     # dt = 0 -> the loop never advances: fuel must run out
-    out = run_exact(
-        fn, [Fraction(1), Fraction(0), Fraction(0), Fraction(1), Fraction(0)], fuel=32
-    )
+    out = run_exact(fn, [Fraction(1), Fraction(0), Fraction(0), Fraction(1), Fraction(0)], fuel=32)
     assert isinstance(out, OutOfFuel)
 
 
@@ -129,9 +125,7 @@ def test_array_updates_are_functional_not_aliased():
 
 
 def test_array_index_failures():
-    fn = translate(
-        "def f(i):\n    xs = [1.0, 2.0]\n    return xs[i]\n", filename="bounds.py"
-    ).fn
+    fn = translate("def f(i):\n    xs = [1.0, 2.0]\n    return xs[i]\n", filename="bounds.py").fn
     assert run_exact(fn, [Fraction(0)]).values == (Fraction(1),)
     for index in (Fraction(2), Fraction(-1), Fraction(1, 2)):
         outcome = run_exact(fn, [index])

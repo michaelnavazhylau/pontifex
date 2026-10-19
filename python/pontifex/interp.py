@@ -4,6 +4,7 @@ Exact arithmetic is Fraction; binary64 arithmetic uses Python float. Expression
 faults propagate left-to-right, and boolean conditions short-circuit faults.
 Only outOfFuel is an incomplete observation; failed/stuck are stable results.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,8 +14,30 @@ import math
 import struct
 
 from .ir import (
-    And, ArrayLit, Assign, Bin, Cmp, Cond, Expr, Fn, Index, Ite, Len, Lit, Not,
-    Or, Pow, Ret, Seq, Set, Skip, Slot, Stmt, Un, Where, While,
+    And,
+    ArrayLit,
+    Assign,
+    Bin,
+    Cmp,
+    Cond,
+    Expr,
+    Fn,
+    Index,
+    Ite,
+    Len,
+    Lit,
+    Not,
+    Or,
+    Pow,
+    Ret,
+    Seq,
+    Set,
+    Skip,
+    Slot,
+    Stmt,
+    Un,
+    Where,
+    While,
 )
 from .errors import InterpreterError
 
@@ -75,7 +98,7 @@ def make_ops(exact: bool) -> dict[str, Callable]:
         "sub": lambda a, b: a - b,
         "mul": lambda a, b: a * b,
         "div": div,
-        "pow": lambda a, n: a ** n,
+        "pow": lambda a, n: a**n,
         "neg": lambda a: -a,
         "abs": abs,
         "lt": lambda a, b: a < b,
@@ -115,9 +138,7 @@ def eval_value(e: Expr, env: Mapping[int, Number], ops: Mapping[str, Callable]) 
             return struct.unpack(">d", struct.pack(">Q", e.bits))[0]
         return ops["literal"](e.value)
     if isinstance(e, Bin):
-        return ops[e.op](
-            eval_scalar(e.lhs, env, ops), eval_scalar(e.rhs, env, ops)
-        )
+        return ops[e.op](eval_scalar(e.lhs, env, ops), eval_scalar(e.rhs, env, ops))
     if isinstance(e, Un):
         return ops[e.op](eval_scalar(e.arg, env, ops))
     if isinstance(e, Pow):
@@ -262,5 +283,5 @@ def rat_string(value: Fraction) -> str:
 
 
 def float_bits(value: float) -> str:
-    bits, = struct.unpack(">Q", struct.pack(">d", value))
+    (bits,) = struct.unpack(">Q", struct.pack(">d", value))
     return "0x" + format(bits, "x")

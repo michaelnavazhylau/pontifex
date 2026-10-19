@@ -4,6 +4,7 @@ The independent Lean counterpart lives in Core/Inline.lean. Only a sequence
 of assignments/skips followed by one scalar return is accepted. Argument
 expressions are captured before entering the relocated, private callee frame.
 """
+
 from __future__ import annotations
 
 from dataclasses import replace
@@ -47,7 +48,9 @@ def inline_body(
     flat = flatten(callee.body)
     # Slot names remain cosmetic: frame bounds come from the actual IR.
     size = max([callee.arity, *(s.slot + 1 for s in flat if isinstance(s, Assign))])
-    names = [callee.slot_names[i] if i < len(callee.slot_names) else f"slot{i}" for i in range(size)]
+    names = [
+        callee.slot_names[i] if i < len(callee.slot_names) else f"slot{i}" for i in range(size)
+    ]
     frame = [fresh(f"{callee.name}#{name}") for name in names]
     offset = frame[0] if frame else None
     # A zero-parameter constant helper can have no slots. Its expressions then

@@ -195,6 +195,9 @@ def test_source_equals_lean_float_end_to_end(stem, lean_exe):
         expected = run_python_source(source, artifacts.fn.name, [float(a) for a in args])
         actual = to_option(lean_out)
         assert actual is not None
-        assert [float_bits(float(v)) for v in actual] == [
-            float_bits(float(v)) for v in expected
-        ], (stem, args, expected, actual)
+        assert [float_bits(float(v)) for v in actual] == [float_bits(float(v)) for v in expected], (
+            stem,
+            args,
+            expected,
+            actual,
+        )

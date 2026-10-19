@@ -1,4 +1,5 @@
 """Artifact configuration stamping and schema guards (P0/T1)."""
+
 from __future__ import annotations
 
 import json
@@ -88,7 +89,9 @@ def test_lean_runner_rejects_stale_ir_json(tmp_path, lean_exe):
 def test_generate_refuses_to_run_on_schema_drift(tmp_path):
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("pontifex_generate", ROOT / "scripts" / "generate.py")
+    spec = importlib.util.spec_from_file_location(
+        "pontifex_generate", ROOT / "scripts" / "generate.py"
+    )
     generate = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(generate)
     config = tmp_path / "Config.lean"

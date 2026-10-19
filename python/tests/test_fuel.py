@@ -1,4 +1,5 @@
 """Fuel boundaries must match, not merely large-budget terminating runs."""
+
 from fractions import Fraction
 
 import pytest
@@ -26,7 +27,7 @@ def test_all_small_fuels_match_lean(source, args, mode, lean_exe):
     run = run_exact if mode == "rat" else run_float
     for fuel in range(16):
         ours = run(fn, args, fuel=fuel)
-        theirs, = run_lean(lean_exe, fn.to_json_text(), [args], mode=mode, fuel=fuel)
+        (theirs,) = run_lean(lean_exe, fn.to_json_text(), [args], mode=mode, fuel=fuel)
         assert compare_outcomes(ours, theirs) is None, (fuel, ours, theirs)
 
 
@@ -64,7 +65,9 @@ def test_sample_generation_uses_requested_budget(tmp_path):
     source = tmp_path / "branch.py"
     source.write_text("def f(x):\n    if x < 0:\n        x = -x\n    return x\n")
     output = tmp_path / "Branch.lean"
-    assert main(["compile", str(source), "--out", str(output), "--fuel", "0", "--with-samples"]) == 0
+    assert (
+        main(["compile", str(source), "--out", str(output), "--fuel", "0", "--with-samples"]) == 0
+    )
     text = output.read_text()
     assert "theorem f_link" in text  # the universal certificate still exists
     assert "native_decide" not in text  # zero fuel cannot produce sample returns

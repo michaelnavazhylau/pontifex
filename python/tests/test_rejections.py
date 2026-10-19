@@ -1,4 +1,5 @@
 """P0/T3: the rejection corpus and its committed diagnostics."""
+
 from __future__ import annotations
 
 import json

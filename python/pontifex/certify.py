@@ -10,11 +10,34 @@ Certificates quantify over arbitrary `Ops α`, so they apply to both Rat and
 Float without evaluating any arithmetic in the kernel. This establishes code
 versus IR equivalence, NOT Python versus IR equivalence.
 """
+
 from __future__ import annotations
 
 from .ir import (
-    And, ArrayLit, Assign, Bin, Cmp, Cond, Expr, Fn, Index, Ite, Len, Lit, Not,
-    Or, Pow, Ret, Seq, Set, Skip, Slot, Stmt, Un, Where, While,
+    And,
+    ArrayLit,
+    Assign,
+    Bin,
+    Cmp,
+    Cond,
+    Expr,
+    Fn,
+    Index,
+    Ite,
+    Len,
+    Lit,
+    Not,
+    Or,
+    Pow,
+    Ret,
+    Seq,
+    Set,
+    Skip,
+    Slot,
+    Stmt,
+    Un,
+    Where,
+    While,
 )
 
 
@@ -58,10 +81,7 @@ def emit_certified(fn: Fn) -> str:
                 f"let idx ← Val.asScalar vi; indexVal ops xs idx)"
             )
         if isinstance(e, Len):
-            return (
-                f"(do let xs ← {value(e.array)}; "
-                f"return Val.scalar (← lenVal ops xs))"
-            )
+            return f"(do let xs ← {value(e.array)}; return Val.scalar (← lenVal ops xs))"
         if isinstance(e, ArrayLit):
             return f"(do let xs ← {scalars(e.items)}; return Val.array xs)"
         if isinstance(e, Set):
@@ -85,8 +105,7 @@ def emit_certified(fn: Fn) -> str:
     def scalar(e: Expr) -> str:
         """Emitted code for `evalS` on `e`: unwrap a `Val`, array is stuck."""
         return (
-            f"((match {value(e)} with "
-            f"| .ok v => Val.asScalar v | .error f => .error f) : Eval α)"
+            f"((match {value(e)} with | .ok v => Val.asScalar v | .error f => .error f) : Eval α)"
         )
 
     def cond(c: Cond) -> str:
@@ -105,8 +124,10 @@ def emit_certified(fn: Fn) -> str:
     def copies(phis, source: str, choice: str) -> str:
         # A monadic parallel copy: every read uses the original snapshot.
         entries = ", ".join(
-            f"({p.slot}, " + (str(p.lhs) if choice == "back" else
-            f"(if branch then {p.lhs} else {p.rhs})") + ")" for p in phis
+            f"({p.slot}, "
+            + (str(p.lhs) if choice == "back" else f"(if branch then {p.lhs} else {p.rhs})")
+            + ")"
+            for p in phis
         )
         return (
             f"([{entries}].foldlM (fun acc (target, origin) => do "
@@ -122,10 +143,7 @@ def emit_certified(fn: Fn) -> str:
         if isinstance(s, Skip):
             body = ".fellThrough env"
         elif isinstance(s, Assign):
-            body = (
-                f"Outcome.fromEval {value(s.expr)} "
-                f"(fun x => .fellThrough (env.set {s.slot} x))"
-            )
+            body = f"Outcome.fromEval {value(s.expr)} (fun x => .fellThrough (env.set {s.slot} x))"
         elif isinstance(s, Ret):
             values = "[" + ", ".join(scalar(e) for e in s.exprs) + "]"
             body = f"Outcome.fromEval ({values}.mapM id) Outcome.returned"
@@ -165,11 +183,15 @@ def emit_certified(fn: Fn) -> str:
         if recursive:
             rules.append("ih")
         proof = (
-            "  induction fuel generalizing env with\n"
-            "  | zero => rfl\n"
-            f"  | succ fuel ih =>\n"
-            f"    simp only [{', '.join(rules)}] <;> rfl\n"
-        ) if recursive else f"  cases fuel <;> simp only [{', '.join(rules)}] <;> rfl\n"
+            (
+                "  induction fuel generalizing env with\n"
+                "  | zero => rfl\n"
+                f"  | succ fuel ih =>\n"
+                f"    simp only [{', '.join(rules)}] <;> rfl\n"
+            )
+            if recursive
+            else f"  cases fuel <;> simp only [{', '.join(rules)}] <;> rfl\n"
+        )
         blocks.append(
             f"/-- Specialized executable block (no IR interpreter calls). -/\n"
             f"def {name} (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α\n"
@@ -191,6 +213,7 @@ def emit_certified(fn: Fn) -> str:
     args_list = ", ".join(inputs)
     # Functions in the supported subset always end in a flat return.
     from .emit import return_arity
+
     arity = return_arity(fn.body)
     projection = tuple_term([f"vs[{i}]!" for i in range(arity)], arity)
     blocks.append(

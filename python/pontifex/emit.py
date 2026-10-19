@@ -135,9 +135,7 @@ def expr_of_ir(e: Expr) -> str:
         items = ", ".join(expr_of_ir(i) for i in e.items)
         return f"(.arrayLit [{items}])"
     if isinstance(e, Set):
-        return (
-            f"(.set {expr_of_ir(e.array)} {expr_of_ir(e.index)} {expr_of_ir(e.value)})"
-        )
+        return f"(.set {expr_of_ir(e.array)} {expr_of_ir(e.index)} {expr_of_ir(e.value)})"
     raise TypeError(type(e))
 
 
@@ -256,6 +254,7 @@ class Emitter:
             new_env[s.slot] = name
             return f"let {name} := {value};\n" + k(new_env)
         if isinstance(s, Seq):
+
             def step(rest: tuple[Stmt, ...], env: Env) -> str:
                 if not rest:
                     return k(env)
@@ -280,9 +279,9 @@ def return_arity(s: Stmt) -> int:
     return arity
 
 
-
 def needs_checked_backend(s: Stmt) -> bool:
     """Use full-outcome code for control flow or possibly failing arithmetic."""
+
     def checked(value):
         if isinstance(value, dict):
             if (
@@ -294,6 +293,7 @@ def needs_checked_backend(s: Stmt) -> bool:
         if isinstance(value, list):
             return any(checked(v) for v in value)
         return False
+
     return checked(s.to_json())
 
 
@@ -327,7 +327,6 @@ def _link_proof(fn: Fn, arity: int, fuel: int) -> str:
         f"      {rhs} :=\n"
         f"  rfl\n"
     )
-
 
 
 def emit_module(
@@ -386,7 +385,7 @@ def emit_module(
     for index, callee in enumerate(translated.callees):
         callee_ns = f"Callee{index}"
         module = emit_module(callee, namespace=callee_ns, fuel=fuel, generator=generator)
-        lines.append(module[module.index(f"namespace {callee_ns}\n"):])
+        lines.append(module[module.index(f"namespace {callee_ns}\n") :])
         callees[callee.function_name] = f"{callee_ns}.{callee.function_name}"
     lines.append(ir_declaration(fn.name, fn))
     from .source import desugar, source_declaration
