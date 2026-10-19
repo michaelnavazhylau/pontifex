@@ -3,7 +3,7 @@
 PY ?= python3
 LAKE ?= lake
 
-.PHONY: all lean gen test check clean fmt corpus rejections
+.PHONY: all lean gen test check clean fmt corpus rejections float-boundaries
 
 all: lean test
 
@@ -14,6 +14,10 @@ lean:
 ## Regenerate the checked-in translations of examples/
 gen:
 	$(PY) scripts/generate.py
+
+## Bit-exact Float boundary corpus (100,000 random patterns + IEEE edge cases)
+float-boundaries: lean
+	uv run python scripts/check_float_boundaries.py
 
 ## Differential corpus (requires `lake build pyverif`)
 corpus:
@@ -29,6 +33,7 @@ check: gen
 	$(PY) scripts/update_rejections.py --check
 	$(LAKE) build
 	$(PY) scripts/run_corpus.py --samples 8
+	uv run python scripts/check_float_boundaries.py
 	uv run pytest
 
 test:

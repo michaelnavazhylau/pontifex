@@ -8,7 +8,7 @@ wire format, and `scripts/generate.py --check` reports stale artifacts.
 
 from __future__ import annotations
 
-IR_VERSION = 1
+IR_VERSION = 2
 
 FUEL_POLICY_LITERAL = "literal"
 FUEL_POLICY_ALL_FUEL = "allFuel"

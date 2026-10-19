@@ -39,7 +39,7 @@ structure Config where
   deriving Repr, DecidableEq
 
 /-- Schema version of the IR, JSON wire format, and generated-artifact shape. -/
-def irSchemaVersion : Nat := 1
+def irSchemaVersion : Nat := 2
 
 /-- Does this artifact use the schema version this library understands? -/
 def Config.schemaMatches (c : Config) : Bool :=

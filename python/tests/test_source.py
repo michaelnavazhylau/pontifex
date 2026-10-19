@@ -10,6 +10,7 @@ from pyverif.source import (
     Ite,
     Lit,
     Ret,
+    Pow,
     Un,
     Var,
     While,
@@ -66,14 +67,11 @@ def test_augassign_desugars_to_bin():
     assert second.expr == Bin("mul", Var(first.var), Lit(2))
 
 
-def test_pow_is_repeated_multiplication():
+def test_pow_is_explicit_in_core_source():
     sfn, _ = _source("def f(x):\n    return x ** 3\n")
     ret = sfn.body[0]
     assert isinstance(ret, Ret)
-    expected = Lit(1)
-    for _ in range(3):
-        expected = Bin("mul", expected, Var(0))
-    assert ret.exprs[0] == expected
+    assert ret.exprs[0] == Pow(Var(0), 3)
 
 
 def test_docstrings_and_pass_become_skip():

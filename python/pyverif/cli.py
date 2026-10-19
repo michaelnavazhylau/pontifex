@@ -27,8 +27,22 @@ from .pipeline import (
 )
 
 
-def _parse_args_list(text: str) -> list[Fraction]:
-    return [Fraction(chunk.strip()) for chunk in text.split(",") if chunk.strip()]
+def _parse_args_list(text: str, *, float_mode: bool = False) -> list:
+    values = []
+    for chunk in text.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        if not float_mode:
+            values.append(Fraction(chunk))
+        elif chunk.startswith("0x"):
+            from .pipeline import _bits_to_float
+            values.append(_bits_to_float(chunk))
+        elif "/" in chunk:
+            values.append(float(Fraction(chunk)))
+        else:
+            values.append(float(chunk))
+    return values
 
 
 def _compiled(args: argparse.Namespace):
@@ -85,12 +99,13 @@ def cmd_compile(args: argparse.Namespace) -> int:
 
 def cmd_eval(args: argparse.Namespace) -> int:
     artifacts = _compiled(args)
-    values = _parse_args_list(args.args)
+    values = _parse_args_list(args.args, float_mode=args.float)
     run = run_float if args.float else run_exact
     out = run(artifacts.fn, values, fuel=args.fuel)
     result = to_option(out)
     if result is None:
-        print(type(out).__name__)
+        from .interp import Failed
+        print(f"Failed({out.error})" if isinstance(out, Failed) else type(out).__name__)
         return 1
     print(", ".join(str(v) for v in result))
     return 0

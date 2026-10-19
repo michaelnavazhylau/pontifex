@@ -18,11 +18,13 @@ open PyVerif
 
 /-- Semantic configuration this artifact was generated under. -/
 def pyverifConfig : Config :=
-  { irVersion := 1
+  { irVersion := 2
     fuelPolicy := .allFuel
     numericMode := .exactRat }
 
 #guard pyverifConfig.schemaMatches
+#guard pyverifConfig.fuelPolicy == .allFuel
+#guard pyverifConfig.numericMode == .exactRat
 
 /-- The checked SSA IR that `simulate` was generated from. -/
 def simulateIR : Fn :=
@@ -51,7 +53,7 @@ theorem simulate_lowering :
 def simulate_block1 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    .fellThrough (env.set 5 (ops.ofRat (0 : Rat)))
+    Outcome.fromEval (.ok (ops.ofRat (0 : Rat))) (fun x => .fellThrough (env.set 5 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block1_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -62,7 +64,7 @@ theorem simulate_block1_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block4 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    .fellThrough (env.set 6 (env.get! 5))
+    Outcome.fromEval (readSlot env 5) (fun x => .fellThrough (env.set 6 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block4_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -73,7 +75,7 @@ theorem simulate_block4_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block6 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    .fellThrough (env.set 7 (env.get! 2))
+    Outcome.fromEval (readSlot env 2) (fun x => .fellThrough (env.set 7 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block6_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -84,7 +86,7 @@ theorem simulate_block6_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block8 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    .fellThrough (env.set 8 (env.get! 1))
+    Outcome.fromEval (readSlot env 1) (fun x => .fellThrough (env.set 8 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block8_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -95,7 +97,7 @@ theorem simulate_block8_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block12 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    .fellThrough (env.set 9 (ops.add (env.get! 7) (ops.mul (env.get! 3) (env.get! 4))))
+    Outcome.fromEval (do let x ← (readSlot env 7); let y ← (do let x ← (readSlot env 3); let y ← (readSlot env 4); return ops.mul x y); return ops.add x y) (fun x => .fellThrough (env.set 9 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block12_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -106,7 +108,7 @@ theorem simulate_block12_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block14 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    .fellThrough (env.set 10 (ops.add (env.get! 8) (ops.mul (env.get! 9) (env.get! 4))))
+    Outcome.fromEval (do let x ← (readSlot env 8); let y ← (do let x ← (readSlot env 9); let y ← (readSlot env 4); return ops.mul x y); return ops.add x y) (fun x => .fellThrough (env.set 10 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block14_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -117,7 +119,7 @@ theorem simulate_block14_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block16 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    .fellThrough (env.set 11 (ops.add (env.get! 6) (env.get! 4)))
+    Outcome.fromEval (do let x ← (readSlot env 6); let y ← (readSlot env 4); return ops.add x y) (fun x => .fellThrough (env.set 11 x))
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block16_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -139,9 +141,7 @@ theorem simulate_block17_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block15 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    match simulate_block16 ops fuel env with
-    | .fellThrough next => simulate_block17 ops fuel next
-    | other => other
+    (simulate_block16 ops fuel env).bindEnv (fun next => simulate_block17 ops fuel next)
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block15_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -152,9 +152,7 @@ theorem simulate_block15_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block13 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    match simulate_block14 ops fuel env with
-    | .fellThrough next => simulate_block15 ops fuel next
-    | other => other
+    (simulate_block14 ops fuel env).bindEnv (fun next => simulate_block15 ops fuel next)
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block13_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -165,9 +163,7 @@ theorem simulate_block13_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block11 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    match simulate_block12 ops fuel env with
-    | .fellThrough next => simulate_block13 ops fuel next
-    | other => other
+    (simulate_block12 ops fuel env).bindEnv (fun next => simulate_block13 ops fuel next)
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block11_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -178,11 +174,12 @@ theorem simulate_block11_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block10 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    if (ops.lt (env.get! 6) (env.get! 0)) then
-      match simulate_block11 ops fuel env with
-      | .fellThrough next => simulate_block10 ops fuel (((next.set 6 (next.get! 11)).set 7 (next.get! 9)).set 8 (next.get! 10))
-      | other => other
-    else .fellThrough env
+    Outcome.fromEval (do let x ← (readSlot env 6); let y ← (readSlot env 0); return ops.lt x y) fun branch =>
+      if branch then
+        (simulate_block11 ops fuel env).bindEnv fun next =>
+          Outcome.fromEval ([(6, 11), (7, 9), (8, 10)].foldlM (fun acc (target, origin) => do let x ← readSlot next origin; return acc.set target x) next) fun header =>
+            simulate_block10 ops fuel header
+      else .fellThrough env
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block10_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -207,9 +204,7 @@ theorem simulate_block18_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block9 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    match simulate_block10 ops fuel env with
-    | .fellThrough next => simulate_block18 ops fuel next
-    | other => other
+    (simulate_block10 ops fuel env).bindEnv (fun next => simulate_block18 ops fuel next)
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block9_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -220,9 +215,7 @@ theorem simulate_block9_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block7 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    match simulate_block8 ops fuel env with
-    | .fellThrough next => simulate_block9 ops fuel next
-    | other => other
+    (simulate_block8 ops fuel env).bindEnv (fun next => simulate_block9 ops fuel next)
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block7_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -233,9 +226,7 @@ theorem simulate_block7_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block5 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    match simulate_block6 ops fuel env with
-    | .fellThrough next => simulate_block7 ops fuel next
-    | other => other
+    (simulate_block6 ops fuel env).bindEnv (fun next => simulate_block7 ops fuel next)
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block5_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -246,9 +237,7 @@ theorem simulate_block5_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block3 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    match simulate_block4 ops fuel env with
-    | .fellThrough next => simulate_block5 ops fuel next
-    | other => other
+    (simulate_block4 ops fuel env).bindEnv (fun next => simulate_block5 ops fuel next)
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block3_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -259,7 +248,7 @@ theorem simulate_block3_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block20 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    .returned [(env.get! 8), (env.get! 7)]
+    Outcome.fromEval ([(readSlot env 8), (readSlot env 7)].mapM id) Outcome.returned
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block20_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -281,9 +270,7 @@ theorem simulate_block21_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block19 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    match simulate_block20 ops fuel env with
-    | .fellThrough next => simulate_block21 ops fuel next
-    | other => other
+    (simulate_block20 ops fuel env).bindEnv (fun next => simulate_block21 ops fuel next)
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block19_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -294,9 +281,7 @@ theorem simulate_block19_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env
 def simulate_block2 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    match simulate_block3 ops fuel env with
-    | .fellThrough next => simulate_block19 ops fuel next
-    | other => other
+    (simulate_block3 ops fuel env).bindEnv (fun next => simulate_block19 ops fuel next)
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block2_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -307,9 +292,7 @@ theorem simulate_block2_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 def simulate_block0 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel
   | fuel + 1, env =>
-    match simulate_block1 ops fuel env with
-    | .fellThrough next => simulate_block2 ops fuel next
-    | other => other
+    (simulate_block1 ops fuel env).bindEnv (fun next => simulate_block2 ops fuel next)
 
 /-- Kernel-checked block certificate, for every arithmetic backend and fuel. -/
 theorem simulate_block0_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env : Env α) :
@@ -318,12 +301,12 @@ theorem simulate_block0_correct (ops : Ops α) [Inhabited α] (fuel : Nat) (env 
 
 /-- The compiled function preserves full outcomes, including exhaustion. -/
 def simulateCompiled (ops : Ops α) [Inhabited α] (fuel : Nat) (args : List α) :
-    Outcome α := simulate_block0 ops fuel args
+    Outcome α := simulate_block0 ops fuel (args.map some)
 
 theorem simulate_compiled_link (ops : Ops α) [Inhabited α]
     (fuel : Nat) (args : List α) :
     simulateCompiled ops fuel args = Fn.run ops simulateIR fuel args := by
-  exact simulate_block0_correct ops fuel args
+  exact simulate_block0_correct ops fuel (args.map some)
 
 /-- Public exact-rational tuple interface. `none` includes fuel exhaustion. -/
 def simulate (fuel : Nat) (input0 : Rat) (input1 : Rat) (input2 : Rat) (input3 : Rat) (input4 : Rat) : Option (Rat × Rat) :=

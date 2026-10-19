@@ -27,6 +27,7 @@ uv sync                                   # Python tooling (pytest, hypothesis)
 lake build                                # Lean library, generated examples, runner
 python scripts/generate.py                # regenerate PyVerif/Generated/*.lean
 uv run pytest                             # frontend, interpreter, differential tests
+make float-boundaries                     # 100,000 random bit patterns + IEEE edges
 make corpus                               # triple differential: CPython / IR / Lean
 python scripts/update_rejections.py       # refresh rejection diagnostics after review
 
@@ -49,6 +50,9 @@ by the differential tests.
 | Generated Lean code = hand-written physics spec | `PyVerif/Examples/SpecLinks.lean` (`rfl`) |
 | Reference semantics is deterministic and total (fuel) | `PyVerif/Core/Semantics.lean` |
 | Python source = IR semantics | **not proved** — checked by differential testing (exact ℚ and binary64) |
+| More fuel preserves completed results (including failures/stuck) | **proved**, generic `exec_mono` / `exec_completed_stable` |
+| Total correctness implies partial correctness | **proved**, `total_to_partial` |
+| Rational division succeeds iff divisor is nonzero | **proved**, `rat_div_success_iff` |
 | Control-flow compiled code (`if`/`while`) = IR semantics | **proved** for every fuel, input, and `Ops α` backend; full outcomes preserved |
 | Clamped integrator = independent piecewise spec | `PyVerif/Examples/ControlFlow.lean`, kernel-checked |
 | General modified-energy invariant | **open**; current core-only algebra helper is limited, and only a finite grid is checked |
@@ -59,13 +63,16 @@ Two numeric readings are first class and never confused:
 
 * `Ops.rat` — exact rational arithmetic (the mathematical reading; `Rat` stands
   in for `ℝ` in this core-Lean-only build),
-* `Ops.float` — IEEE-754 binary64 (the operational reading of Python `float`).
+* `Ops.float` — Lean's built-in Float model;
+* `Ops.binary64` — raw-bit wire/literal values with arithmetic through built-in
+  Float, used by the oracle's `float` mode.
 
 Literals in the IR are exact rationals; the frontend encodes a Python float
 literal by the *exact binary value* of that float, rather than its decimal
-spelling. This is a deliberate alternative reading, not a proof of equivalence
-to Python floats. Exceptions, extreme float conversions, signed zero, and
-floating-point `**` remain modelling gaps; see `docs/TRUST.md`.
+spelling. Float literals also retain original bits, including subnormals and
+signed zero. Division by zero and Float power overflow are explicit failures.
+See `docs/FLOAT_POLICY.md` for NaN policy and remaining numeric-tower and native
+arithmetic trust boundaries.
 
 ## The language subset (v0)
 
@@ -74,7 +81,7 @@ One function per module, scalar parameters, and:
 * statements: `x = e`, `x: T = e`, `x += e` (also `-=`, `*=`, `/=`), `if/else`,
   `while`, `pass`, `return` (single exit, last statement only);
 * expressions: names, int/float literals, `+ - * /`, `**` with an integer
-  literal exponent in `[0, 8]` (desugared to multiplication), unary `-`,
+  literal exponent in `[0, 8]` (an explicit backend-specific operation), unary `-`,
   `abs(x)`;
 * conditions: one comparison at a time (not chained), `and` / `or` / `not`,
   boolean literals.
@@ -88,8 +95,11 @@ subscripting, `min`/`max`, conditional expressions, or tuple unpacking.
 ```
 PyVerif/
   Core/IR.lean          deep embedding: Expr, Cond, Phi, Stmt, Fn
-  Core/Source.lean      core source language (pre-SSA), ids instead of names
-  Core/Lower.lean       verified SSA lowering; checked per program by `rfl`
+  Core/Source.lean      core source syntax (pre-SSA), ids instead of names
+  Core/Lower.lean       reference SSA lowering; per-program agreement checked by `rfl`
+  Core/Refinement.lean  fuel monotonicity and total/partial specs
+  Core/Binary64.lean    raw-bit Float boundaries, including NaN payloads
+  Core/Error.lean       checked arithmetic failures and stuck states
   Core/Ops.lean         Rat and Float numeric backends
   Core/Semantics.lean   Env, evalE/evalC, exec (fuel), Fn.run
   Json.lean             JSON decoder/encoder for the IR (Lean side)
@@ -102,12 +112,13 @@ python/pyverif/
   certify.py            proof-producing control-flow backend (all-fuel linkage)
   version.py            IR schema version shared with Lean
   ...                   frontend, SSA lowering, emitter, interpreter, CLI
-corpus/                 18-program triple-differential corpus + manifest
+corpus/                 21-program triple-differential corpus + Float boundary policy
 tests/rejections/       57 rejected programs with committed diagnostics
 examples/               Python programs that are translated
 python/tests/           unit, rejection, differential (incl. Lean oracle) tests
 TODO.md                 ordered implementation roadmap with acceptance criteria
 docs/TRUST.md           trust model, status matrix, open obligations
+docs/FLOAT_POLICY.md    bits, exceptions, NaNs, power, and native arithmetic policy
 docs/RELATED_WORK.md    review of Charon/Aeneas and ranked lessons for us
 docs/related-work/      full reading reports for both upstream repositories
 ```
@@ -150,19 +161,15 @@ useful.
 
 ## Roadmap
 
-Completed: all-fuel code↔IR certificates for nested `if`/`while`, a verified
-SSA lowering with per-program `rfl` certificates, backend-parametric
-full-outcome preservation, and corruption-rejection tests.
+Completed: all-fuel code↔IR certificates for control flow and fallible arithmetic,
+per-program agreement with the reference SSA lowering, fuel refinement,
+total/partial specs, explicit failures/stuck, and bit-exact Float boundaries.
+Native arithmetic agreement is tested—not a proof of Python/runtime correctness.
 
-The ordered, acceptance-criteria-backed plan lives in `TODO.md`. P0 is
-complete (config stamping, axiom gate, rejection corpus, differential corpus).
+P0 and P1 are complete; see `TODO.md`. P1 uses a flat information order with
+bottom, not a lattice: failures and stuck states are stable observations.
+
 Next:
-
-1. **P1:** an outcome lattice with a fuel-refinement theorem, explicit
-   exceptional/stuck outcomes (division by zero first), and closing the Float
-   boundary model.
-2. **P2:** a verified reflective `Rat` normaliser (closes the modified-energy
-   and n-step theorems), a spec database with `pyverif_step`, and Float
-   value/bit-level lemmas.
-3. **P3:** multi-exit returns, state vectors, function calls, an opacity
-   lattice, and Python integer semantics.
+1. **P2:** reflective rational normalization, a spec database/tactic, and
+   native Float arithmetic proofs.
+2. **P3:** multi-exit returns, arrays, function calls, and Python integer semantics.

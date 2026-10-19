@@ -22,146 +22,146 @@ set_option linter.unusedVariables false
 
 namespace PyVerif
 
-/-- A slot environment is a dense list: slot `i` lives at index `i`. -/
-abbrev Env (α : Type) := List α
+/-- A dense slot environment. Uninitialized/gap slots are none, not invented
+    scalar defaults. An initialized slot i contains some value at index i. -/
+abbrev Env (α : Type) := List (Option α)
 
 namespace Env
 
 /-- Total lookup: an unset slot is `none`. -/
 def get? {α : Type} : Env α → Nat → Option α
   | [], _ => none
-  | a :: _, 0 => some a
+  | a :: _, 0 => a
   | _ :: as, n + 1 => get? as n
 
-/-- Lookup with a default; `default` is unreachable for well-formed programs
-    (the frontend guarantees that every referenced slot is assigned first). -/
-def get! {α : Type} [Inhabited α] (e : Env α) (i : Nat) : α :=
-  (get? e i).getD default
-
-/-- Overwriting update that *extends* the environment with `default` when the
+/-- Overwriting update that extends the environment with uninitialized none slots when the
     slot has not been materialised yet.  Extension must be explicit: `List.set`
     silently drops out-of-range writes, which would make translated branch-local
     slots disappear. -/
 def set {α : Type} [Inhabited α] : Env α → Nat → α → Env α
-  | [], 0, v => [v]
-  | [], n + 1, v => default :: set [] n v
-  | _ :: as, 0, v => v :: as
+  | [], 0, v => [some v]
+  | [], n + 1, v => none :: set [] n v
+  | _ :: as, 0, v => some v :: as
   | a :: as, n + 1, v => a :: set as n v
 
 end Env
 
-/-- Outcome of executing a statement. -/
+/-- Observable completed outcomes are stable; only fuel exhaustion is incomplete. -/
 inductive Outcome (α : Type) where
-  /-- The statement executed `ret`, producing the returned scalars. -/
   | returned : List α → Outcome α
-  /-- The statement completed without returning, leaving this environment. -/
   | fellThrough : Env α → Outcome α
-  /-- The budget was exhausted (possibly even in a straight-line block).
-      This is not a proof that the source program diverges. -/
-  | outOfFuel : Outcome α
+  | failed : Error → Outcome α
+  | stuck
+  | outOfFuel
   deriving Repr, DecidableEq
 
 namespace Outcome
 
-/-- Forget which way a program terminated, keeping only returned values. -/
-def toOption {α : Type} : Outcome α → Option (List α)
+def toOption : Outcome α → Option (List α)
   | .returned vs => some vs
-  | .fellThrough _ => none
-  | .outOfFuel => none
+  | _ => none
+
+/-- Continue only normal fall-through; preserve every other outcome unchanged. -/
+def bindEnv (r : Outcome α) (k : Env α → Outcome α) : Outcome α :=
+  match r with
+  | .fellThrough env => k env
+  | other => other
+
+/-- Convert an expression/condition fault into its observable outcome. -/
+def fromEval (r : Eval β) (k : β → Outcome α) : Outcome α :=
+  match r with
+  | .ok x => k x
+  | .error (.failed e) => .failed e
+  | .error .stuck => .stuck
 
 end Outcome
 
-/-- Scalar expression evaluation. -/
-def evalE (o : Ops α) [Inhabited α] (env : Env α) : Expr → α
-  | .slot i => env.get! i
-  | .lit q => o.ofRat q
-  | .bin op a b =>
-      let x := evalE o env a
-      let y := evalE o env b
-      match op with
-      | .add => o.add x y
-      | .sub => o.sub x y
-      | .mul => o.mul x y
-      | .div => o.div x y
-  | .un op a =>
-      let x := evalE o env a
-      match op with
-      | .neg => o.neg x
-      | .abs => o.abs x
+/-- Reading an undefined slot is stuck, never an invented default value. -/
+def readSlot (env : Env α) (i : Nat) : Eval α :=
+  match env.get? i with
+  | some x => .ok x
+  | none => .error .stuck
 
-/-- Boolean expression evaluation (with short-circuiting `and`/`or`). -/
-def evalC (o : Ops α) [Inhabited α] (env : Env α) : Cond → Bool
-  | .cmp op a b =>
-      let x := evalE o env a
-      let y := evalE o env b
+/-- Python-style division: either sign of zero raises, including NaN / zero. -/
+def checkedDiv (o : Ops α) (x y : α) : Eval α :=
+  if o.isZero y then .error (.failed .divisionByZero) else .ok (o.div x y)
+
+/-- Left-to-right scalar expression evaluation with explicit failures. -/
+def evalE (o : Ops α) (env : Env α) : Expr → Eval α
+  | .slot i => readSlot env i
+  | .lit q => .ok (o.ofRat q)
+  | .floatLit q bits => .ok (o.ofFloatBits q bits)
+  | .pow a n => do o.pow (← evalE o env a) n
+  | .bin op a b => do
+      let x ← evalE o env a
+      let y ← evalE o env b
       match op with
+      | .add => return o.add x y
+      | .sub => return o.sub x y
+      | .mul => return o.mul x y
+      | .div => checkedDiv o x y
+  | .un op a => do
+      let x ← evalE o env a
+      match op with
+      | .neg => return o.neg x
+      | .abs => return o.abs x
+
+/-- Conditions short-circuit, including their failure behavior. -/
+def evalC (o : Ops α) (env : Env α) : Cond → Eval Bool
+  | .cmp op a b => do
+      let x ← evalE o env a
+      let y ← evalE o env b
+      return match op with
       | .lt => o.lt x y
       | .le => o.le x y
       | .gt => o.gt x y
       | .ge => o.ge x y
       | .eq => o.eq x y
       | .ne => o.ne x y
-  | .and a b => evalC o env a && evalC o env b
-  | .or a b => evalC o env a || evalC o env b
-  | .not a => !evalC o env a
-  | .const b => b
+  | .and a b => do
+      if ← evalC o env a then evalC o env b else return false
+  | .or a b => do
+      if ← evalC o env a then return true else evalC o env b
+  | .not a => do return !(← evalC o env a)
+  | .const b => .ok b
 
-/-- Apply the phis of an `if`: read `lhs` from the then-environment or `rhs` from
-    the else-environment, depending on which branch was taken. -/
-def mergePhis [Inhabited α] (b : Bool) (phis : List Phi) (env : Env α) : Env α :=
-  phis.foldl (fun acc p => acc.set p.slot (env.get! (if b then p.lhs else p.rhs))) env
+/-- Parallel phi copies read the original snapshot, not the accumulator. -/
+def mergePhis [Inhabited α] (b : Bool) (phis : List Phi) (env : Env α) : Eval (Env α) :=
+  phis.foldlM (fun acc p => do
+    let x ← readSlot env (if b then p.lhs else p.rhs)
+    return acc.set p.slot x) env
 
-/-- Set the loop-header slots from the body's back-edge slots. -/
-def applyBackEdges [Inhabited α] (phis : List Phi) (env : Env α) : Env α :=
-  phis.foldl (fun acc p => acc.set p.slot (env.get! p.lhs)) env
+def applyBackEdges [Inhabited α] (phis : List Phi) (env : Env α) : Eval (Env α) :=
+  phis.foldlM (fun acc p => do
+    let x ← readSlot env p.lhs
+    return acc.set p.slot x) env
 
-
-/-- Statement execution with a step budget.
-
-    The budget is consumed by every statement and by every loop iteration, so
-    the recursion is *structural on the fuel argument*.  This is a deliberate
-    design choice:
-
-    * the semantics stays total, so no source program needs a termination proof
-      before it can be discussed;
-    * `exec` is a plain structural recursion, which the kernel can evaluate for
-      literal fuel budgets.  That is what makes the `rfl` linkage checks between
-      emitted Lean code and this semantics possible;
-    * loop-friendly theorems are proved by induction on the fuel argument.
-
-    Fuel bounds both loop iterations and structured execution depth, not total
-    instruction count. A sequence cons consumes one level, giving the remaining
-    budget to BOTH its head and its tail. An if consumes one level before its
-    chosen branch; a while consumes one level before BOTH its body and back edge.
-    Consequently even a false loop condition needs positive fuel. -/
+/-- Fuel is structured depth: a cons/if/while gives one less level to each
+    child/back edge, not a globally shared step counter. A false loop still
+    requires positive fuel. Failures and stuck states propagate unchanged. -/
 def exec (o : Ops α) [Inhabited α] : Nat → Stmt → Env α → Outcome α
   | 0, _, _ => .outOfFuel
-  | fuel + 1, .skip, env => .fellThrough env
-  | fuel + 1, .assign i e, env => .fellThrough (env.set i (evalE o env e))
-  | fuel + 1, .seq [], env => .fellThrough env
+  | _ + 1, .skip, env => .fellThrough env
+  | _ + 1, .assign i e, env =>
+      Outcome.fromEval (evalE o env e) (fun x => .fellThrough (env.set i x))
+  | _ + 1, .seq [], env => .fellThrough env
   | fuel + 1, .seq (s :: rest), env =>
-      match exec o fuel s env with
-      | .fellThrough env' => exec o fuel (.seq rest) env'
-      | other => other
+      (exec o fuel s env).bindEnv (fun next => exec o fuel (.seq rest) next)
   | fuel + 1, .ite c t e phis, env =>
-      let b := evalC o env c
-      match (if b then exec o fuel t env else exec o fuel e env) with
-      | .fellThrough env' => .fellThrough (mergePhis b phis env')
-      | other => other
+      Outcome.fromEval (evalC o env c) fun b =>
+        (if b then exec o fuel t env else exec o fuel e env).bindEnv fun next =>
+          Outcome.fromEval (mergePhis b phis next) Outcome.fellThrough
   | fuel + 1, .whil c phis body, env =>
-      -- The header slots are initialised by explicit assignments emitted before
-      -- the loop (see `Phi.rhs`), so entering a loop never rewrites them again.
-      -- Re-initialising here would discard the loop-carried values on exit.
-      if evalC o env c then
-        match exec o fuel body env with
-        | .fellThrough env' => exec o fuel (.whil c phis body) (applyBackEdges phis env')
-        | other => other
-      else .fellThrough env
-  | fuel + 1, .ret es, env => .returned (es.map (evalE o env))
+      Outcome.fromEval (evalC o env c) fun b =>
+        if b then
+          (exec o fuel body env).bindEnv fun next =>
+            Outcome.fromEval (applyBackEdges phis next) fun header =>
+              exec o fuel (.whil c phis body) header
+        else .fellThrough env
+  | _ + 1, .ret es, env =>
+      Outcome.fromEval (es.mapM (evalE o env)) Outcome.returned
 
-/-- Run a translated function on arguments. -/
-def Fn.run (o : Ops α) [Inhabited α] (f : Fn) (fuel : Nat) (args : List α) :
-    Outcome α :=
-  exec o fuel f.body args
+def Fn.run (o : Ops α) [Inhabited α] (f : Fn) (fuel : Nat) (args : List α) : Outcome α :=
+  exec o fuel f.body (args.map some)
 
 end PyVerif

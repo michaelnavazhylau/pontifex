@@ -1,7 +1,7 @@
 """Surface Python -> core source AST, for the verified lowering certificate.
 
 The frontend validates the supported subset; this module performs the *purely
-syntactic* desugaring (augmented assignment, `**` expansion, `abs`, docstring and
+syntactic* desugaring (augmented assignment, explicit `**`, `abs`, docstring and
 `pass` removal) and emits the core AST as a Lean value.
 
 Variable names are replaced by integer ids assigned in **sorted name order**, so
@@ -11,15 +11,16 @@ generated module checks that by `rfl`:
 
     theorem <fn>_lowering : Source.lowerBody <fn>Source = .ok <fn>IR.body := rfl
 
-That certificate moves the SSA algorithm out of the trusted base. The
-transcription below and the surface desugaring remain trusted; they are
-cross-checked by the certificate because both pipelines start from the same
-Python AST.
+That certificate checks Python's SSA output against the Lean reference lowering.
+It is not a source/IR semantic-preservation theorem: the reference algorithm's
+fidelity, transcription below, and surface desugaring remain trusted and tested.
 """
 
 from __future__ import annotations
 
 import ast
+import math
+import struct
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Sequence
@@ -50,6 +51,13 @@ class Var(SExpr):
 @dataclass(frozen=True)
 class Lit(SExpr):
     value: Fraction
+    bits: int | None = None
+
+
+@dataclass(frozen=True)
+class Pow(SExpr):
+    base: SExpr
+    exponent: int
 
 
 @dataclass(frozen=True)
@@ -198,8 +206,11 @@ class _Desugar:
             if isinstance(value, int):
                 return Lit(Fraction(value))
             if isinstance(value, float):
+                if not math.isfinite(value):
+                    raise self.err(node, "non-finite float literals are not supported")
                 num, den = value.as_integer_ratio()
-                return Lit(Fraction(num, den))
+                bits, = struct.unpack(">Q", struct.pack(">d", value))
+                return Lit(Fraction(num, den), bits)
             raise self.err(node, f"literal of type {type(value).__name__} is not supported")
         if isinstance(node, ast.BinOp):
             if isinstance(node.op, ast.Pow):
@@ -209,10 +220,7 @@ class _Desugar:
                 if isinstance(node.right.value, bool) or not (0 <= n <= MAX_POW_EXPONENT):
                     raise self.err(node, f"exponent must be in [0, {MAX_POW_EXPONENT}]")
                 base = self.expr(node.left)
-                out: SExpr = Lit(Fraction(1))
-                for _ in range(n):
-                    out = Bin("mul", out, base)
-                return out
+                return Pow(base, n)
             op = BIN_OPS.get(type(node.op))
             if op is None:
                 raise self.err(node, f"unsupported operator {type(node.op).__name__}")
@@ -328,7 +336,11 @@ def _expr(e: SExpr) -> str:
     if isinstance(e, Var):
         return f"(.var {e.id})"
     if isinstance(e, Lit):
+        if e.bits is not None:
+            return f"(.floatLit {_rat(e.value)} {e.bits})"
         return f"(.lit {_rat(e.value)})"
+    if isinstance(e, Pow):
+        return f"(.pow {_expr(e.base)} {e.exponent})"
     if isinstance(e, Bin):
         return f"(.bin .{e.op} {_expr(e.lhs)} {_expr(e.rhs)})"
     if isinstance(e, Un):

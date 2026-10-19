@@ -1,0 +1,8 @@
+{
+  "allow": [
+    {
+      "rule": "computed_nan_payload",
+      "reason": "Computed NaN sign and payload are not specified by Python or IEEE-754. Only permit a bit mismatch when BOTH arithmetic results are NaN. Identity transport, literal round trips, sign/abs operations, finite values, and failure outcomes are never exempt."
+    }
+  ]
+}

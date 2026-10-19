@@ -41,8 +41,20 @@ Parameter kinds:
 | `nonnegative` | same, absolute value (use for end times) |
 | `nat` | integer in `[0, max]` (use for loop counters) |
 
-Constraints must guarantee termination, avoid division by zero, and keep loop
-iterations below `fuel` (loops consume one unit per iteration).
+Constraints must guarantee termination and stay within the structured fuel
+budget. Division by zero is now an explicit compared outcome, not an excluded
+input. Source exceptions map to the same `Failed` constructors as both IR
+interpreters. Use `positive` when a program needs a nonzero divisor for its
+algorithm rather than to hide failures.
+
+## Binary64 boundary corpus
+
+`make float-boundaries` runs 100,000 fixed-seed random bit patterns and explicit
+IEEE edge cases through CPython, Python IR, and Lean. Raw wire transport,
+literals, and sign operations are bit-exact, including NaN payloads. Arithmetic
+may canonicalize computed NaNs: `float_allowlist.json` permits payload/sign
+differences only when both results are NaN; finite differences and failures are
+never exempt. See `docs/FLOAT_POLICY.md` for the precise tested/proved policy.
 
 ## Allowlist
 

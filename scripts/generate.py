@@ -28,7 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "python"))
 
-from pyverif.emit import emit_module, has_control_flow  # noqa: E402
+from pyverif.emit import emit_module, needs_checked_backend  # noqa: E402
 from pyverif.version import IR_VERSION  # noqa: E402
 from pyverif.frontend import translate  # noqa: E402
 from pyverif.interp import Returned, run_exact  # noqa: E402
@@ -90,6 +90,17 @@ AUDIT_EXAMPLES = [
     "PyVerif.Examples.clampedStep_matches_spec",
     "PyVerif.Examples.freeFallLoop_float_link",
     "PyVerif.Examples.freeFallLoop_zero_budget",
+    "PyVerif.Binary64.bits_roundtrip",
+    "PyVerif.exec_mono",
+    "PyVerif.exec_completed_stable",
+    "PyVerif.total_to_partial",
+    "PyVerif.Outcome.refines_trans",
+    "PyVerif.Outcome.refines_antisymm",
+    "PyVerif.Examples.rat_div_success_iff",
+    "PyVerif.Examples.rat_div_failed_iff",
+    "PyVerif.Examples.freeFallLoop_compiled_mono",
+    "PyVerif.Examples.freeFallLoop_zero_time_total",
+    "PyVerif.Examples.freeFallLoop_zero_time_partial",
 ]
 
 
@@ -102,7 +113,7 @@ def audit_content() -> str:
         namespace = default_namespace(stem)
         fn = translated.fn
         names.append(f"{namespace}.{fn.name}_lowering")
-        if has_control_flow(fn.body):
+        if needs_checked_backend(fn.body):
             names.append(f"{namespace}.{fn.name}_compiled_link")
         names.append(f"{namespace}.{fn.name}_link")
     names.extend(AUDIT_EXAMPLES)
@@ -113,6 +124,7 @@ def audit_content() -> str:
         "import PyVerif.Generated",
         "import PyVerif.Examples.SpecLinks",
         "import PyVerif.Examples.ControlFlow",
+        "import PyVerif.Examples.FailuresAndRefinement",
         "import PyVerif.Audit.Command",
         "",
     ]

@@ -98,12 +98,20 @@ allowlist with a reason; adding a corpus program requires no test code.
 
 ---
 
-## P1 — semantics hardening (one breaking change window)
+## P1 — semantics hardening — ✅ complete (schema 2)
+
+Implemented: generic fuel refinement and total→partial specs; stable failed/stuck
+outcomes; checked left-to-right division and short-circuiting; sparse uninitialized
+slots; bit-authoritative Float transport/literals; explicit power semantics;
+and a 100,000-pattern boundary corpus. See `docs/FLOAT_POLICY.md` and the current
+trust matrix. The order is flat with bottom, not a lattice; only exhaustion is
+below completed observations. Native arithmetic agreement is tested, not proved.
+The worked fuel-free loop spec covers zero duration, not general termination.
 
 T5 and T6 should land together: both reshape `Outcome`, the JSON encoding, and
 the generated certificates. Doing them before language growth avoids rework.
 
-### T5. Outcome lattice and fuel-refinement theorem — **M**, medium risk
+### ✅ T5. Outcome lattice and fuel-refinement theorem — **M**, medium risk
 
 **Why.** Fuel is currently threaded through every theorem, and `OutOfFuel` is
 just an inert constructor. Aeneas makes divergence the bottom of an order and
@@ -111,8 +119,8 @@ derives total (`DWP`) and partial (`DWLP`) readings from one definition.
 
 **Scope.**
 
-- define `Outcome.Refines : Outcome α → Outcome α → Prop` with exhaustion (and
-  the future failure outcome) below completed runs;
+- define `Outcome.Refines : Outcome α → Outcome α → Prop` with exhaustion below completed runs;
+  failure and stuck are stable observations, not bottom;
 - prove fuel monotonicity: if a run with `n` returned, a run with `m ≥ n`
   returns the same values; if it fell through, likewise;
 - expose `spec`/`dspec`-style wrappers: total correctness (no exhaustion) and
@@ -123,7 +131,7 @@ derives total (`DWP`) and partial (`DWLP`) readings from one definition.
 free-fall loop spec is restated without per-proof fuel plumbing; no certificate
 depends on `native_decide`.
 
-### T6. Exceptional and stuck outcomes — **M**, medium risk
+### ✅ T6. Exceptional and stuck outcomes — **M**, medium risk
 
 **Why.** Lean's `Rat` division is total while Python raises; NaN/∞ and future
 bounds checks have no home. Aeneas models `Result` failures explicitly, so specs
@@ -132,8 +140,8 @@ can say “fails iff”. Doing this now prevents widening `Option` later.
 **Scope.**
 
 - extend `Outcome` with `failed : Error → Outcome α` and `stuck : Outcome α`;
-- `Error` starts with `divisionByZero` (then `integerOverflow`,
-  `indexOutOfBounds`, `assertionFailure` reserved);
+- `Error` starts with `divisionByZero` (plus `overflow` for Float power;
+  `indexOutOfBounds` and `assertionFailure` are reserved);
 - make `IR.div` checked: zero divisor produces `failed .divisionByZero` in both
   `Rat` and `Float` backends (with a documented `floatDiv` policy for NaN/∞);
 - update the Python reference interpreter, JSON codec, Lean runner, emitter
@@ -144,7 +152,7 @@ can say “fails iff”. Doing this now prevents widening `Option` later.
 Python `ZeroDivisionError` maps to `failed`; fuel-boundary differential tests
 cover both success and failure outcomes.
 
-### T7. Close the Float boundary model — **M/L**, medium risk
+### ✅ T7. Close the Float boundary model — **M/L**, medium risk
 
 **Why.** `ofRat` is not a correct-conversion proof for subnormals, the wire format
 loses `-0.0`, and `**` semantics differ between exact and binary64 readings.
@@ -152,12 +160,13 @@ These are currently documented gaps, not tested boundaries.
 
 **Scope.**
 
-- exact literal path: emit float literals as their binary64 value and prove/test
-  round-trip for every finite double (spot corpus + subnormals);
+- exact literal path: emit float literals as original bits plus an exact rational;
+  prove raw UInt64 representation round-trip, and test native/wire behavior on
+  random patterns, zero signs, extremes, subnormals, and NaNs;
 - bit-preserving input/output wire format (hex bits both ways, including `-0.0`);
 - state and test policies for NaN, ±∞, overflow/underflow, and `-0.0 == 0.0`;
-- define `**` consistently: keep repeated multiplication for integers, reject
-  non-integer exponents for floats unless a `Float.pow` model is added;
+- define `**` consistently: use exact rational power or native Float.pow for literal natural
+  exponents 0..8, with explicit overflow failure; reject other exponents;
 - document which claims are proved vs tested vs out of scope.
 
 **Acceptance.** A boundary corpus over ~10⁵ random doubles (values, ±0, NaN,
@@ -294,8 +303,8 @@ changes meaning between exact and float modes.
 ## Recommended sequence
 
 1. ✅ **T1–T4** complete.
-2. **T4** (corpus) alongside **T5 + T6** (one outcome/lattice window).
-3. **T7** (numeric boundaries) before promising any Float result.
+2. ✅ **T5–T7** complete. Computed-NaN exemptions are explicit and counted;
+   native arithmetic proofs and a full Python numeric tower remain open.
 4. **T8** (ring) to unlock the two remaining physics theorems; then **T9**
    (tactics) to make the library pleasant.
 5. Grow the language only after the outcome model and corpus are stable:

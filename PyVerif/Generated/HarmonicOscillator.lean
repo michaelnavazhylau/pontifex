@@ -17,11 +17,13 @@ open PyVerif
 
 /-- Semantic configuration this artifact was generated under. -/
 def pyverifConfig : Config :=
-  { irVersion := 1
+  { irVersion := 2
     fuelPolicy := .literal
     numericMode := .exactRat }
 
 #guard pyverifConfig.schemaMatches
+#guard pyverifConfig.fuelPolicy == .literal
+#guard pyverifConfig.numericMode == .exactRat
 
 /-- The checked SSA IR that `step` was generated from. -/
 def stepIR : Fn :=

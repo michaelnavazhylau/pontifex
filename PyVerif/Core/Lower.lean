@@ -1,7 +1,7 @@
 /-
   PyVerif.Core.Lower
 
-  **Verified SSA lowering** of the core source language into the IR.
+  Reference SSA lowering of the core source syntax into the IR.
 
   This is the Lean counterpart of `python/pyverif/frontend.py`'s lowering.  For
   every generated module, `PyVerif.Generated.*` contains
@@ -10,10 +10,11 @@
       theorem <fn>_lowering : lowerBody <fn>Source = .ok <fn>IR.body := rfl
 
   so the kernel checks that the IR body really is the image of the source AST
-  under this function.  That moves the SSA algorithm (slot allocation, phi
-  merges, loop-carried headers) out of the trusted base.  It does **not** prove
-  that the emitted source AST faithfully represents the Python file, nor that
-  the surface desugaring is correct; see `docs/TRUST.md`.
+  under this function. This checks Python's SSA output against the Lean
+  reference algorithm (slot allocation, phi merges, loop-carried headers).
+  There is no source evaluator or semantic-preservation proof for this
+  algorithm. Source transcription, desugaring, and fidelity of this reference
+  lowering to Python remain trust boundaries; see `docs/TRUST.md`.
 
   Slot *names* are not produced: they are cosmetic, and omitting them keeps the
   kernel from having to evaluate string operations.
@@ -59,6 +60,8 @@ def lowerExpr (st : LowerState) : Expr → Except String _root_.PyVerif.Expr
       | some slot => .ok (.slot slot)
       | none => .error s!"source variable {v} is not bound at this point"
   | .lit q => .ok (.lit q)
+  | .floatLit q bits => .ok (.floatLit q bits)
+  | .pow a n => do return .pow (← lowerExpr st a) n
   | .bin op a b => do
       return .bin op (← lowerExpr st a) (← lowerExpr st b)
   | .un op a => do

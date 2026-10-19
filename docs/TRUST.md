@@ -1,216 +1,163 @@
 # Trust model and verification status
 
-## What the certificates establish
+## What is (and is not) checked
 
 ```
-Python source -- parse/check -- core AST -- verified lowering --> IR
-     |                                                            |
- CPython eval                                   reference `exec` + compiled blocks
-     |                                                            |
-     +-------- tested only ----------- code ↔ IR: kernel proof ----+
+Python file -- trusted parsing/transcription --> core Source AST
+                                                    |
+                          Source.lowerBody (Lean reference lowering)
+                                                    |
+                                         emitted SSA IR
+                                          /         \
+                               reference exec   compiled blocks
+                                          \========= /
+                                         kernel certificates
 ```
 
-Three layers are kernel-checked per program:
+* `<fn>_lowering` checks **agreement** between the emitted IR body and the Lean
+  reference lowering of the emitted Source AST, by `rfl`. There is no separate
+  Source-language evaluator or semantic-preservation proof for that lowering.
+  The lowering is a formal executable specification, not a verified compiler
+  for all Python programs. Transcription/desugaring and fidelity of that
+  reference lowering remain trust boundaries.
+* `<fn>_compiled_link` checks code↔IR behavioral equivalence for every fuel,
+  environment, and `Ops α`. Generated blocks do not call `exec`, `evalE`, or
+  `evalC`; they independently emit operations, control flow, and phi copies.
+  Parent certificates compose child certificates, with fuel induction for loops.
+* Fallible arithmetic (division/power) uses the same certified backend even
+  without control flow. It preserves all outcomes, not just successful results.
+* Infallible straight-line code keeps the small direct `Rat`/tuple translation,
+  with `<fn>_link := rfl` at a selected literal fuel. That function ignores its
+  fuel parameter; its linkage theorem is **not** an all-fuel statement.
+* Worked generated functions are linked to independent physics specifications.
+  This verifies the modeled algorithms, not all behaviors of a Python runtime.
 
-1. **Core AST → IR** (`<fn>_lowering`): the verified lowering function
-   `PyVerif/Source/Lower` reproduces the emitted IR body, by `rfl`. This puts
-   slot allocation, phi merges, loop headers, and sorted-name ordering into the
-   proved core instead of the Python frontend.
-2. **IR → compiled code** (`<fn>_link`, `<fn>_compiled_link`): straight-line
-   code by `rfl` at the selected fuel; control flow for every fuel and every
-   `Ops α` backend with full outcome preservation.
-3. **Compiled code → spec** for the worked physics examples.
+## P1 outcomes, refinement, and specs
 
-**Python → core AST is not proved.** Parsing, subset checking, and the
-syntactic transcription in `python/pyverif/source.py` remain trusted; the
-certificate only starts at the emitted core AST. Concretely, a bug that made
-the emitted AST differ from the Python program in an IR-visible way would break
-`<fn>_lowering` (both pipelines start from the same AST), but a bug in the
-transcription itself is not checked against the file.
+`Outcome α` is now:
 
-## Verified lowering
-
-`PyVerif/Core/Source.lean` defines the pre-SSA language: assignments, `if`,
-`while`, `return`, `pass`, with variables as `Nat` ids. The frontend assigns ids
-in **sorted name order**, so the lowering's `sorted(assigned_names)` and sorted
-loop variables become sorting of ids. Consequently:
-
-* the emitted `<fn>Source` contains no strings in its body, so the kernel never
-  has to reduce string equality;
-* the certificate compares `Source.lowerBody <fn>Source` with `<fn>IR.body`.
-  Slot *names* and parameter names are cosmetic and are not compared; parameter
-  ids come from the emitted AST and parameter slots are positional.
-
-The certificate is checked with a raised `maxRecDepth` because the lowering is
-a nested structural recursion. It is plain `rfl`: no `native_decide`, no
-`sorry`, no arithmetic evaluation, no backend specialization.
-
-Corrupting the source AST, the desugared arithmetic, or the emitted IR body
-makes the certificate fail; `python/tests/test_certificates.py` exercises those
-mutations, along with control-flow codegen corruptions.
-
-### Straight-line backend
-
-Assignments become direct `let` bindings over `Rat`. `<fn>_link` is proved by
-`rfl` at the chosen literal fuel (64 in checked-in examples). The direct
-function ignores its fuel argument; the theorem is **not** an all-fuel claim.
-Too small a fuel makes that theorem fail to check.
-
-### Certified control-flow backend
-
-`python/pyverif/certify.py` independently emits one specialized function per
-statement/sequence tail. The executable blocks:
-
-* operate on explicit slot environments;
-* emit arithmetic calls and branch conditions directly, without calling
-  `exec`, `evalE`, `evalC`, or the reference phi-copy helpers;
-* compile branches and parallel phi copies, and recurse structurally on fuel
-  for loops;
-* preserve **full outcomes**, distinguishing `returned`, `fellThrough`, and
-  `outOfFuel`, rather than only equating a lossy `Option` projection.
-
-Each block receives a kernel-checked `_correct` theorem. Parent certificates
-compose child certificates; loop certificates induct on fuel while generalizing
-the entire environment. For every generated control-flow function:
-
-```lean
-<fn>_compiled_link (ops : Ops α) [Inhabited α] (fuel : Nat) (args : List α) :
-  <fn>Compiled ops fuel args = Fn.run ops <fn>IR fuel args
+```
+returned values | fellThrough env | failed Error | stuck | outOfFuel
 ```
 
-This quantifies over **every fuel, input environment, and arithmetic backend**.
-In particular it applies to `Ops.rat` and `Ops.float` without evaluating floats
-in the kernel. The public `<fn>` wrapper projects to a rational tuple;
-`<fn>_link` proves that wrapper agrees with the corresponding reference
-projection at every fuel too.
+`Error` currently includes `divisionByZero` and `overflow` (Float power).
+`indexOutOfBounds`/`assertionFailure` are reserved constructors, not implemented
+language features. Undefined slots/phi predecessors yield `stuck`. Environments
+contain `Option α` cells: gaps are uninitialized, never manufactured zeros.
 
-This replaces the scaffold's old tuple-style loop emitter, which had different
-fuel accounting and only sample checks. The specialized slot-state output is
-less pretty but gives an exact, independently checked target for nested loops,
-branches, continuations after loops, and exhaustion.
+`Outcome.Refines a b := a = outOfFuel ∨ a = b` is a **flat partial order with
+bottom**, not a lattice. Distinct results have no common upper bound. Failures
+and stuck states are stable observations, not approximations of success.
 
-The proof generator is not itself verified. Its generated proofs are checked
-per program; corrupting arithmetic, a phi predecessor, or fuel behavior makes
-the certificate fail. The tests exercise those mutations explicitly.
+The kernel-checked `exec_mono` theorem says more fuel refines any run, for any
+`Ops α`, IR statement, and environment. `exec_completed_stable` consequently
+preserves returned values, fall-through state, failure identity, and stuck.
+These are generic proofs, not finite test results.
+
+* `TotalSpec`: some finite observation returns values satisfying the postcondition.
+* `PartialSpec`: every observation either exhausts or returns values satisfying
+  the postcondition; failures/stuck are forbidden.
+* `total_to_partial` derives the latter from the former using refinement.
+
+`Examples/FailuresAndRefinement.lean` includes a fuel-free zero-duration
+free-fall specification, its total→partial corollary, a generated-code
+monotonicity theorem, and rational division success/failure iff lemmas. General
+positive-duration loop termination and physics error bounds remain separate
+proof obligations; P1 does not establish them.
+
+## Numeric readings and transport
+
+See **[FLOAT_POLICY.md](FLOAT_POLICY.md)** for the precise boundary contract.
+
+* `Ops.rat`: exact rationals, **not** the full real field. Float literals use
+  their exact binary rational value in this reading.
+* `Ops.float`: Lean's built-in native Float model.
+* `Ops.binary64`: raw UInt64 boundary representation with numeric operations
+  through built-in Float. This preserves identity/literal/sign bits even though
+  Lean's Float model canonicalizes NaNs.
+* Float wire mode uses hexadecimal bit strings in both directions, preserving
+  signed zero, subnormals, infinities, and raw NaN payloads on identity transport.
+* Division checks zero (including -0.0) before computing. Power is an explicit
+  backend operation: exact rational power or native Float power with overflow
+  mapped to a language failure. A failing base is evaluated even at exponent 0.
+* Native rounding/libm equivalence is tested, **not proved**. Computed NaN
+  sign/payload differences have a narrow, counted allowlist; finite differences
+  and failure mismatches are never exempt.
+* General Python integer coercions, huge integers, and mixed integer-only
+  subexpressions are not modeled by a verified numeric tower. The exact and
+  Float readings are deliberate scalar interpretations, not interchangeable
+  claims about all accepted Python expressions.
+
+Schema **2** covers the changed outcome/state semantics and literal/power IR.
+Schema-1 artifacts are intentionally rejected and must be regenerated.
+
+## Fuel convention
+
+Both interpreters and certified code follow the same structured budget:
+
+* zero exhausts immediately, even for return or a false loop;
+* assign/skip/return/empty sequence need one positive level;
+* a sequence cons with n+1 gives n to both its head and tail;
+* an if gives n to its selected branch;
+* a while gives n to its body and back edge.
+
+Fuel is execution depth, not a shared instruction counter. Headers are
+initialized before loop entry; back edges copy from a snapshot. Exhaustion is
+not evidence of divergence. Partial correctness does not prove termination.
 
 ## Build-time trust gates
 
-| Gate | Mechanism | Failure mode |
-| --- | --- | --- |
-| Schema drift | `pyverifConfig` + `#guard pyverifConfig.schemaMatches`; `generate.py` also cross-checks `IR_VERSION` against `irSchemaVersion` | `lake build` or regeneration fails |
-| Axiom leakage | generated `PyVerif/Audit.lean` runs `#audit_axioms` on every lowering/linkage theorem | build fails naming the theorem and axiom |
-| Stale artifacts | `scripts/generate.py --check` compares generated Lean, JSON, and the audit manifest | nonzero exit with the stale paths |
-| Wire-format drift | Lean JSON decoder rejects a mismatched `irVersion` | runner exits with a version error |
-| Rejection drift | `scripts/update_rejections.py --check` compares diagnostics byte-for-byte | nonzero exit listing stale snapshots |
-| Corpus regression | `scripts/run_corpus.py` compares CPython, IR exact, IR binary64, and Lean on deterministic inputs | nonzero exit listing the program and mode |
+| Gate | Mechanism |
+| --- | --- |
+| Schema drift | stamped config, Lean `#guard`, generator Python/Lean cross-check, JSON decoder version check |
+| Axiom leakage | generated `Audit.lean` audits all lowering/linkage certificates and P1 core/example theorems |
+| Stale artifacts | `generate.py --check` compares Lean, JSON, and audit manifest |
+| Rejection drift | committed class/message/location snapshots and `update_rejections.py --check` |
+| Corpus drift | fixed-seed CPython↔IR↔Lean comparisons, including explicit failures |
+| Float regressions | 100,000-pattern boundary corpus, bit-exact comparisons and counted computed-NaN exemptions |
 
-`native_decide` remains allowed only in explicitly labelled `*_sample_*`
-theorems (build-time regression checks); the audit excludes those by name and
-the trust-gate tests reject `native_decide` anywhere else in generated files.
+The audit allows only Lean's `propext`, `Classical.choice`, and `Quot.sound`.
+It rejects `sorryAx`, native-evaluation trust hooks, and project-specific axioms.
+Optional `*_sample_*` theorems and the harmonic energy grid use `native_decide`;
+those are finite build-time tests, not universal correctness certificates.
 
-## Verification status
+## Status
 
 | Claim | Status |
 | --- | --- |
-| Artifact config and IR schema stamped | **Checked** by `#guard` in every generated module |
-| Certificates depend only on standard axioms | **Checked** at build time by `#audit_axioms` |
-| Rejection diagnostics are stable | **Snapshotted** (57 cases, exact class/message/location) |
-| Differential corpus (source ↔ IR ↔ Lean) | **Tested** (18 programs × exact/rat/float) |
-| Core AST → emitted IR body | **Proved**, `rfl`, every generated program |
-| Straight-line code = IR semantics | **Proved**, `rfl`, selected fuel, exact Rat |
-| Branch/loop compiled code = IR semantics | **Proved**, all fuel and `Ops α`, full outcomes |
-| Control-flow tuple wrapper = reference tuple projection | **Proved**, all fuel |
-| Free-fall and harmonic steps = independent Euler specs | **Proved**, `PyVerif/Examples/SpecLinks.lean` |
-| Clamped step = independent piecewise spec | **Proved**, `PyVerif/Examples/ControlFlow.lean` |
-| Free-fall velocity exactness and step expansions | **Proved**, `PyVerif/Spec/Mechanics.lean` |
-| General harmonic modified-energy invariant | **Open**; a finite grid is checked |
-| Python source = IR semantics | **Tested only**, exact and binary64 |
-| JSON decoder agrees with emitted IR | **Tested only** |
-| Python interpreter fuel = Lean interpreter fuel | **Tested**, including small boundary budgets |
+| Emitted Source/IR agreement with reference lowering | Kernel-checked, per program |
+| Checked code↔IR full-outcome equivalence | Proved, all fuel and arithmetic backends |
+| Direct infallible rational code↔IR | Proved, selected fuel |
+| Fuel monotonicity and completed-outcome stability | Proved generically |
+| Total→partial spec implication | Proved generically |
+| Rational division success iff divisor nonzero | Proved |
+| Raw binary64 representation round-trip | Proved by rfl |
+| Native Float/CPython arithmetic agreement | Tested at IEEE edges and random bits, not proved |
+| Python source↔IR equivalence | Tested only; still unproved |
+| Physics step/spec links and clamping spec | Proved for the modeled algorithms |
+| General harmonic modified-energy invariant | Open; finite grid only |
+| General positive-duration loop termination | Open |
 
-The lowering and linkage proofs use no `sorry`, `native_decide`, or
-project-specific axioms.
-Tests inspect `#print axioms` and allow only Lean's standard `propext`,
-`Classical.choice`, and `Quot.sound`. Optional `*_sample_i` theorems and the
-modified-energy grid use `native_decide`; they remain **finite tests** with a
-compiler-trust dependency, not universal correctness proofs.
+## Remaining boundaries
 
-## Exact fuel convention
+* AST parsing/transcription, reference lowering fidelity, annotation/type handling,
+  and JSON parsing are not proved correct with respect to Python.
+* Codegen certificates are per-program checks, not a universal compiler theorem.
+* Native machine-code semantics and Float arithmetic implementations remain
+  trusted/tested boundaries. IEEE arithmetic proofs are P2 work.
+* `rat_simp` is limited algebra automation, not a ring normalizer. Core Lean can
+  prove coefficient identities using explicit lemmas; the current helper cannot.
+* Arrays, function calls, early returns, a general exception hierarchy, and a
+  Python numeric tower remain unsupported features, not silent assumptions.
 
-Both the Python reference interpreter and certified Lean code now follow
-`PyVerif/Core/Semantics.lean` exactly:
-
-* zero fuel exhausts immediately, even for `return` or a false loop;
-* an assignment, skip, return, or empty sequence needs one positive level;
-* a sequence cons with budget `n+1` gives `n` to its head AND its tail;
-* an if with `n+1` gives `n` to the selected branch;
-* a while with `n+1` gives `n` to its body AND the recursive back edge.
-
-Fuel bounds structured execution depth and loop iterations, not total executed
-instructions. Identical straight-line siblings do not share a global counter.
-Headers are initialized by explicit assignments before entering a loop; back
-edges copy from a snapshot, and the false exit does not reinitialize headers.
-
-An exhausted run does **not** establish divergence or termination. All-fuel
-code equivalence is not a termination proof for the Python program.
-
-## Remaining trust boundaries
-
-### Frontend and well-formedness
-
-The Python AST frontend, SSA lowering, annotation handling, and JSON decoder
-are not formally verified. Unsupported syntax is rejected, but accepted syntax
-can still contain translation bugs. Types are scalar-by-construction in the
-IR; Python annotations are advisory, not a verified type discipline. A JSON
-consumer does not establish well-formed slot usage. Lean's environment lookup
-uses defaults for unset slots; the Python interpreter rejects those accesses.
-The generated theorem equates the two Lean programs even on malformed inputs;
-it does not establish the frontend's well-formedness promises.
-
-The next frontend milestone is to define a restricted source language and
-semantics in Lean and certify lowering or generate independently checked
-lowering evidence. Differential tests remain useful but are not a substitute.
-
-### Numeric semantics
-
-* `Rat` models exact rational arithmetic, **not** the full real field. Float
-  literals use their exact binary value, not their decimal spelling.
-* `Ops.float` is Lean's binary64 arithmetic. A generic code/IR certificate
-  establishes identical operation structure, **not** equivalence to CPython's
-  runtime or correctness of IEEE-754 implementations.
-* Rational transport loses negative zero. The Float literal/input conversion
-  divides separately converted numerator and denominator; extreme values or
-  nonrepresentable components can overflow, underflow, or double-round. The
-  small test corpus does not establish correctness of that conversion for all
-  Python floats (notably subnormals).
-* Division by zero is total in Lean but raises in Python. Exceptions, NaN/∞,
-  signed-zero fidelity, fused operations, and Python integer/float coercions
-  remain outside the current Python-equivalence claim.
-* `**` is lowered to repeated multiplication. This is mathematically valid
-  over Rat but is not generally bit-equivalent to Python floating-point power.
-
-### Physics algebra
-
-Core Lean supplies rational arithmetic lemmas but no `ring` tactic.
-`rat_simp` distributes and reassociates terms; it does not normalize
-coefficients or fully cancel polynomial terms. This is an **automation gap**,
-not an impossibility of proving those facts in core Lean. Stronger identities
-need explicit lemmas, a verified reflective normalizer, or an optional Mathlib
-layer. The modified-energy invariant remains a finite grid test today.
-
-## Reproduce the checks
+## Reproduce
 
 ```bash
-python scripts/generate.py
-lake build
-uv run pytest
-python scripts/generate.py --check
+make check                 # freshness, audit, corpora, tests
+make float-boundaries      # full 100,000-pattern Float run
 ```
 
-`test_certificates.py` compiles fresh nested/empty/diverging control-flow
-programs, audits lowering and linkage axiom dependencies, specializes a
-certificate at Float, and checks that corrupted source ASTs, desugared
-arithmetic, IR bodies, generated code, phi copies, and fuel behavior are
-rejected. `test_fuel.py` compares
-small-budget Python/Lean runs, including terminating, diverging, and nested
-cases. Generated linkage proofs do not depend on those finite tests.
+Certificate corruption tests exercise wrong arithmetic, source/IR mismatches,
+phi copies, and exhaustion. P1 adds failure/short-circuit/evaluation-order tests,
+malformed-state tests, schema migration checks, and Float payload/zero/subnormal
+regressions. Finite tests complement, but do not replace, the kernel proofs.

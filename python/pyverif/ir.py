@@ -13,9 +13,10 @@ Lean             Python
 ``Fn``           :class:`Fn`
 ===============  ==========================================================
 
-Every scalar literal is an exact rational (``num``/``den``).  There is no
-"float literal" in the IR: the numeric interpretation is chosen by the
-interpreter (exact ``Rat`` or IEEE-754 ``Float``), never by the frontend.
+Integer literals carry an exact rational. Float literals carry both their
+exact binary rational value and original binary64 bits, so exact and Float
+readings remain explicit without losing subnormals or signed zero. Power is a
+separate operation rather than a multiplication expansion.
 """
 
 from __future__ import annotations
@@ -64,12 +65,25 @@ class Slot(Expr):
 @dataclass(frozen=True)
 class Lit(Expr):
     value: Fraction
+    bits: int | None = None
 
     def __str__(self) -> str:
         return str(self.value)
 
     def to_json(self) -> Json:
-        return {"k": "lit", "num": self.value.numerator, "den": self.value.denominator}
+        payload = {"k": "lit", "num": self.value.numerator, "den": self.value.denominator}
+        if self.bits is not None:
+            payload.update(k="floatLit", bits=str(self.bits))
+        return payload
+
+
+@dataclass(frozen=True)
+class Pow(Expr):
+    base: Expr
+    exponent: int
+
+    def to_json(self) -> Json:
+        return {"k": "pow", "e": self.base.to_json(), "n": self.exponent}
 
 
 @dataclass(frozen=True)
@@ -280,8 +294,11 @@ def _expr_of_json(j: Json) -> Expr:
     k = j["k"]
     if k == "slot":
         return Slot(int(j["i"]))
-    if k == "lit":
-        return Lit(Fraction(int(j["num"]), int(j["den"])))
+    if k in {"lit", "floatLit"}:
+        bits = int(j["bits"]) if k == "floatLit" else None
+        return Lit(Fraction(int(j["num"]), int(j["den"])), bits)
+    if k == "pow":
+        return Pow(_expr_of_json(j["e"]), int(j["n"]))
     if k == "bin":
         return Bin(j["op"], _expr_of_json(j["l"]), _expr_of_json(j["r"]))
     if k == "un":
@@ -359,6 +376,8 @@ def slots_read(e: Expr | Cond) -> set[int]:
         return slots_read(e.lhs) | slots_read(e.rhs)
     if isinstance(e, Un):
         return slots_read(e.arg)
+    if isinstance(e, Pow):
+        return slots_read(e.base)
     if isinstance(e, Cmp):
         return slots_read(e.lhs) | slots_read(e.rhs)
     if isinstance(e, (And, Or)):

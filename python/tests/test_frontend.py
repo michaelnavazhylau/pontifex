@@ -19,6 +19,7 @@ from pyverif.ir import (
     Ret,
     Seq,
     Slot,
+    Pow,
     Un,
     While,
     fn_of_json,
@@ -73,12 +74,13 @@ def test_augassign_and_abs():
     assert unary[0].op == "abs"
 
 
-def test_pow_desugars_to_multiplication():
+def test_pow_preserves_backend_specific_operation():
     t = translate("def f(x: float):\n    return x ** 3\n", filename="pow.py")
     ret = [s for s in stmts(t.fn.body) if isinstance(s, Ret)][0]
     expr = ret.exprs[0]
-    assert isinstance(expr, Bin) and expr.op == "mul"
-    assert isinstance(expr.lhs, Bin) and expr.lhs.op == "mul"
+    assert isinstance(expr, Pow)
+    assert expr.base == Slot(0)
+    assert expr.exponent == 3
 
 
 def test_if_produces_phis():

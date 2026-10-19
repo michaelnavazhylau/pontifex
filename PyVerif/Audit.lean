@@ -4,6 +4,7 @@
 import PyVerif.Generated
 import PyVerif.Examples.SpecLinks
 import PyVerif.Examples.ControlFlow
+import PyVerif.Examples.FailuresAndRefinement
 import PyVerif.Audit.Command
 
 #audit_axioms PyVerif.Generated.FreeFall.step_lowering
@@ -22,3 +23,14 @@ import PyVerif.Audit.Command
 #audit_axioms PyVerif.Examples.clampedStep_matches_spec
 #audit_axioms PyVerif.Examples.freeFallLoop_float_link
 #audit_axioms PyVerif.Examples.freeFallLoop_zero_budget
+#audit_axioms PyVerif.Binary64.bits_roundtrip
+#audit_axioms PyVerif.exec_mono
+#audit_axioms PyVerif.exec_completed_stable
+#audit_axioms PyVerif.total_to_partial
+#audit_axioms PyVerif.Outcome.refines_trans
+#audit_axioms PyVerif.Outcome.refines_antisymm
+#audit_axioms PyVerif.Examples.rat_div_success_iff
+#audit_axioms PyVerif.Examples.rat_div_failed_iff
+#audit_axioms PyVerif.Examples.freeFallLoop_compiled_mono
+#audit_axioms PyVerif.Examples.freeFallLoop_zero_time_total
+#audit_axioms PyVerif.Examples.freeFallLoop_zero_time_partial

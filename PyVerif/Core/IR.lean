@@ -42,6 +42,8 @@ inductive UnOp where
 inductive Expr where
   | slot : Nat → Expr
   | lit : Rat → Expr
+  | floatLit : Rat → UInt64 → Expr
+  | pow : Expr → Nat → Expr
   | bin : BinOp → Expr → Expr → Expr
   | un : UnOp → Expr → Expr
   deriving Repr, DecidableEq

@@ -68,7 +68,20 @@ partial def decodeExpr (j : Json) : Except String Expr := do
   | "lit" =>
       let num ← getInt j "num"
       let den ← getNat j "den"
+      if den == 0 then throw "literal denominator must be positive"
       return .lit (Rat.divInt num (Int.ofNat den))
+  | "floatLit" =>
+      let num ← getInt j "num"
+      let den ← getNat j "den"
+      if den == 0 then throw "literal denominator must be positive"
+      let bitsText ← getStr j "bits"
+      let some bits := bitsText.toNat? | throw "invalid float literal bits"
+      if bits >= 2^64 then throw "float literal bits exceed 64 bits"
+      return .floatLit (Rat.divInt num (Int.ofNat den)) (UInt64.ofNat bits)
+  | "pow" =>
+      let ej ← j.getObjVal? "e"
+      let e ← decodeExpr ej
+      return .pow e (← getNat j "n")
   | "bin" =>
       let op ← decodeBinOp (← getStr j "op")
       let lj ← j.getObjVal? "l"
@@ -184,13 +197,25 @@ def encodeRat (q : Rat) : Json :=
 def encodeFloat (f : Float) : Json :=
   Json.str s!"0x{String.ofList (Nat.toDigits 16 (UInt64.toNat (Float.toBits f)))}"
 
+def encodeBinary64 (x : Binary64) : Json :=
+  Json.str s!"0x{String.ofList (Nat.toDigits 16 x.bits.toNat)}"
+
 def encodeVals (enc : α → Json) (vs : List α) : Json :=
   Json.arr (vs.toArray.map enc)
 
 def encodeOutcome (enc : α → Json) : Outcome α → Json
   | .returned vs => Json.mkObj [("kind", Json.str "returned"), ("vals", encodeVals enc vs)]
-  | .fellThrough _ => Json.mkObj [("kind", Json.str "fellThrough")]
+  | .fellThrough env => Json.mkObj [("kind", Json.str "fellThrough"),
+      ("slots", Json.arr (env.toArray.map fun slot => match slot with
+        | none => Json.null
+        | some x => enc x))]
   | .outOfFuel => Json.mkObj [("kind", Json.str "outOfFuel")]
+  | .stuck => Json.mkObj [("kind", Json.str "stuck")]
+  | .failed e => Json.mkObj [("kind", Json.str "failed"), ("error", Json.str (match e with
+      | .divisionByZero => "divisionByZero"
+      | .overflow => "overflow"
+      | .indexOutOfBounds => "indexOutOfBounds"
+      | .assertionFailure => "assertionFailure"))]
 
 /-! ## Input parsing (exact rationals) -/
 
@@ -203,7 +228,7 @@ def parseRat (s : String) : Except String Rat :=
       | none => .error s!"expected an integer, got '{n}'"
   | [n, d] =>
       match n.toInt?, d.toNat? with
-      | some i, some j => .ok (Rat.divInt i (Int.ofNat j))
+      | some i, some j => if j == 0 then .error "zero denominator" else .ok (Rat.divInt i (Int.ofNat j))
       | _, _ => .error s!"expected n/d with integers, got '{s}'"
   | _ => .error s!"expected n or n/d, got '{s}'"
 
@@ -214,5 +239,32 @@ def parseInputs (s : String) : Except String (List (List Rat)) := do
     let items ← row.getArr?
     items.toList.mapM fun v => do
       parseRat (← Json.getStr? v)
+
+/-- Hexadecimal wire input is authoritative in Float mode. It preserves all
+    binary64 patterns, including signed zero and NaN payloads. Rational strings
+    remain a convenience for humans, not the bit-exact protocol. -/
+def parseFloat (s : String) : Except String Binary64 := do
+  if s.startsWith "0x" then
+    let chars := (s.drop 2).toString.toList
+    if chars.isEmpty || chars.length > 16 then throw "expected 1..16 hexadecimal digits"
+    let bits ← chars.foldlM (fun acc c => do
+      let code := c.toNat
+      let digit ←
+        if 48 ≤ code && code ≤ 57 then pure (code - 48)
+        else if 97 ≤ code && code ≤ 102 then pure (code - 87)
+        else if 65 ≤ code && code ≤ 70 then pure (code - 55)
+        else throw "invalid hexadecimal float bits"
+      return acc * 16 + digit) 0
+    return Binary64.ofBits (UInt64.ofNat bits)
+  let q ← parseRat s
+  return Ops.binary64.ofRat q
+
+def parseFloatInputs (s : String) : Except String (List (List Binary64)) := do
+  let j ← Json.parse s
+  let rows ← j.getArr?
+  rows.toList.mapM fun row => do
+    let items ← row.getArr?
+    items.toList.mapM fun v => do
+      parseFloat (← Json.getStr? v)
 
 end PyVerif.Json

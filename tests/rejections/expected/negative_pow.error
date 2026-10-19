@@ -1,2 +1,2 @@
 UnsupportedError
-tests/rejections/cases/negative_pow.py:2:12: only '**' with an integer literal exponent is supported (translated by repeated multiplication)
+tests/rejections/cases/negative_pow.py:2:12: only '**' with an integer literal exponent is supported (represented by a backend-specific power operation)

@@ -100,6 +100,18 @@ def load_python_function(source: str, name: str, filename: str = "<string>") -> 
     return namespace[name]
 
 
+def observe_python(fn: Callable[..., Any], args: Sequence[Any]) -> Outcome:
+    """Map supported CPython outcomes to the same observable language results."""
+    from .interp import Failed
+    try:
+        value = fn(*args)
+        return Returned(value if isinstance(value, tuple) else (value,))
+    except ZeroDivisionError:
+        return Failed("divisionByZero")
+    except OverflowError:
+        return Failed("overflow")
+
+
 def run_python_source(
     source: str,
     name: str,
@@ -153,7 +165,14 @@ def run_lean(
         ir_path = Path(tmp) / "ir.json"
         inputs_path = Path(tmp) / "inputs.json"
         ir_path.write_text(ir_json_text)
-        inputs_path.write_text(json.dumps([_wire_rats(v) for v in inputs]))
+        if mode == "float":
+            from .interp import float_bits
+            wire = [[float_bits(float(v)) for v in row] for row in inputs]
+        elif mode == "rat":
+            wire = [_wire_rats(v) for v in inputs]
+        else:
+            raise ValueError(f"unknown numeric mode {mode!r}")
+        inputs_path.write_text(json.dumps(wire))
         proc = subprocess.run(
             [str(exe), mode, str(ir_path), str(inputs_path), str(fuel)],
             capture_output=True,
@@ -167,13 +186,20 @@ def run_lean(
 
 
 def _decode_outcome(item: dict[str, Any]) -> Outcome:
-    from .interp import FellThrough, OutOfFuel
+    from .interp import FellThrough, OutOfFuel, Failed, Stuck
 
     kind = item["kind"]
+    if kind == "failed":
+        return Failed(item["error"])
+    if kind == "stuck":
+        return Stuck()
     if kind == "outOfFuel":
         return OutOfFuel()
     if kind == "fellThrough":
-        return FellThrough({})
+        return FellThrough({
+            i: (_bits_to_float(value) if value.startswith("0x") else _parse_rat_string(value))
+            for i, value in enumerate(item["slots"]) if value is not None
+        })
     values = item["vals"]
     if values and isinstance(values[0], str) and values[0].startswith("0x"):
         return Returned(tuple(_bits_to_float(v) for v in values))
@@ -201,7 +227,16 @@ def compare_outcomes(
     """Return ``None`` when two outcomes agree, else a short explanation."""
     lv, rv = to_option(left), to_option(right)
     if lv is None or rv is None:
+        from .interp import Failed, FellThrough
         if type(left) is type(right):
+            if isinstance(left, Failed) and left.error != right.error:
+                return f"failure mismatch: {left.error} vs {right.error}"
+            if isinstance(left, FellThrough):
+                if left.env.keys() != right.env.keys():
+                    return "environment slot mismatch"
+                slots = sorted(left.env)
+                return compare_outcomes(Returned(tuple(left.env[i] for i in slots)),
+                    Returned(tuple(right.env[i] for i in slots)))
             return None
         return f"termination mismatch: {type(left).__name__} vs {type(right).__name__}"
     if len(lv) != len(rv):

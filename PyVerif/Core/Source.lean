@@ -2,7 +2,7 @@
   PyVerif.Core.Source
 
   A **verified core source language**: the surface Python subset after purely
-  syntactic desugaring (augmented assignment, repeated multiplication for `**`,
+  syntactic desugaring (augmented assignment, explicit natural-exponent power,
   docstring removal), before SSA lowering.
 
   Variable references are `Nat` identifiers rather than strings.  This is a
@@ -26,6 +26,8 @@ namespace PyVerif.Source
 inductive Expr where
   | var : Nat → Expr
   | lit : Rat → Expr
+  | floatLit : Rat → UInt64 → Expr
+  | pow : Expr → Nat → Expr
   | bin : BinOp → Expr → Expr → Expr
   | un : UnOp → Expr → Expr
   deriving Repr, DecidableEq

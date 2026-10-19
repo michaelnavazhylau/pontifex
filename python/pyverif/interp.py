@@ -1,53 +1,23 @@
-"""Reference interpreter over the SSA IR.
+"""Reference semantics, mirroring Lean's explicit outcomes and structured fuel.
 
-This is the *Python-side* reading of the IR, used for differential testing
-against the Lean reference semantics.  It mirrors ``PyVerif/Core/Semantics.lean``
-clause by clause, including the fuel discipline for loops.
-
-Two numeric modes:
-
-``exact=True``
-    scalars are :class:`fractions.Fraction`; the mathematical reading.
-``exact=False``
-    scalars are Python ``float``, i.e. IEEE-754 binary64; the operational
-    reading of CPython.
-
-Division by zero is an error in both modes (the Lean `Rat`/`Float` backends are
-total, so zero division is *outside* the modelled subset; the frontend cannot
-detect it statically and the harness avoids it).
+Exact arithmetic is Fraction; binary64 arithmetic uses Python float. Expression
+faults propagate left-to-right, and boolean conditions short-circuit faults.
+Only outOfFuel is an incomplete observation; failed/stuck are stable results.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Any, Callable, Mapping, Sequence
+import struct
 
-from .errors import InterpreterError
 from .ir import (
-    And,
-    Assign,
-    Bin,
-    Cmp,
-    Cond,
-    Expr,
-    Fn,
-    Ite,
-    Lit,
-    Not,
-    Or,
-    Ret,
-    Seq,
-    Skip,
-    Slot,
-    Stmt,
-    Un,
-    Where,
-    While,
+    And, Assign, Bin, Cmp, Cond, Expr, Fn, Ite, Lit, Not, Or, Pow, Ret,
+    Seq, Skip, Slot, Stmt, Un, Where, While,
 )
+from .errors import InterpreterError
 
-Number = Any  # Fraction or float
-
+Number = Any
 DEFAULT_FUEL = 512
 
 
@@ -62,29 +32,36 @@ class FellThrough:
 
 
 @dataclass(frozen=True)
+class Failed:
+    error: str
+
+
+@dataclass(frozen=True)
+class Stuck:
+    pass
+
+
+@dataclass(frozen=True)
 class OutOfFuel:
     pass
 
 
-Outcome = Returned | FellThrough | OutOfFuel
+Outcome = Returned | FellThrough | Failed | Stuck | OutOfFuel
 
 
 def to_option(outcome: Outcome) -> tuple[Number, ...] | None:
-    if isinstance(outcome, Returned):
-        return outcome.values
-    return None
+    return outcome.values if isinstance(outcome, Returned) else None
+
+
+class _StuckSignal(Exception):
+    pass
 
 
 def make_ops(exact: bool) -> dict[str, Callable]:
-    e = InterpreterError
-
-    def div(a: Number, b: Number) -> Number:
+    def div(a, b):
         if b == 0:
-            raise e("division by zero (outside the modelled subset)")
+            raise ZeroDivisionError
         return a / b
-
-    def abs_(a: Number) -> Number:
-        return -a if a < 0 else a
 
     return {
         "literal": Fraction if exact else float,
@@ -92,8 +69,9 @@ def make_ops(exact: bool) -> dict[str, Callable]:
         "sub": lambda a, b: a - b,
         "mul": lambda a, b: a * b,
         "div": div,
+        "pow": lambda a, n: a ** n,
         "neg": lambda a: -a,
-        "abs": abs_,
+        "abs": abs,
         "lt": lambda a, b: a < b,
         "le": lambda a, b: a <= b,
         "gt": lambda a, b: a > b,
@@ -103,17 +81,25 @@ def make_ops(exact: bool) -> dict[str, Callable]:
     }
 
 
+def _read(env, slot):
+    if slot not in env:
+        raise _StuckSignal
+    return env[slot]
+
+
 def eval_expr(e: Expr, env: Mapping[int, Number], ops: Mapping[str, Callable]) -> Number:
     if isinstance(e, Slot):
-        if e.index not in env:
-            raise InterpreterError(f"slot {e.index} read before assignment (invalid IR)")
-        return env[e.index]
+        return _read(env, e.index)
     if isinstance(e, Lit):
+        if e.bits is not None and ops["literal"] is float:
+            return struct.unpack(">d", struct.pack(">Q", e.bits))[0]
         return ops["literal"](e.value)
     if isinstance(e, Bin):
         return ops[e.op](eval_expr(e.lhs, env, ops), eval_expr(e.rhs, env, ops))
     if isinstance(e, Un):
         return ops[e.op](eval_expr(e.arg, env, ops))
+    if isinstance(e, Pow):
+        return ops["pow"](eval_expr(e.base, env, ops), e.exponent)
     raise TypeError(type(e))
 
 
@@ -139,68 +125,66 @@ class Interpreter:
         self.fuel = fuel
         self.ops = make_ops(exact)
 
-    def convert(self, value: Number) -> Number:
-        return Fraction(value) if self.exact else float(value)
-
     def run(self, fn: Fn, args: Sequence[Number]) -> Outcome:
-        if len(args) != fn.arity:
-            raise InterpreterError(f"{fn.name} expects {fn.arity} arguments, got {len(args)}")
-        env: dict[int, Number] = {i: self.convert(a) for i, a in enumerate(args)}
+        convert = Fraction if self.exact else float
+        env = {i: convert(a) for i, a in enumerate(args)}
         return self.exec(fn.body, env, self.fuel)
 
     def exec(self, s: Stmt, env: Mapping[int, Number], fuel: int) -> Outcome:
+        try:
+            return self._exec(s, env, fuel)
+        except ZeroDivisionError:
+            return Failed("divisionByZero")
+        except OverflowError:
+            return Failed("overflow")
+        except _StuckSignal:
+            return Stuck()
+
+    def _exec(self, s: Stmt, env: Mapping[int, Number], fuel: int) -> Outcome:
         if fuel == 0:
             return OutOfFuel()
-        ops = self.ops
         if isinstance(s, Skip):
             return FellThrough(dict(env))
         if isinstance(s, Assign):
-            new_env = dict(env)
-            new_env[s.slot] = eval_expr(s.expr, env, ops)
-            return FellThrough(new_env)
+            updated = dict(env)
+            updated[s.slot] = eval_expr(s.expr, env, self.ops)
+            return FellThrough(updated)
         if isinstance(s, Seq):
-            current: Outcome = FellThrough(dict(env))
-            # Each cons cell consumes one level, just like `exec (.seq (s :: rest))`
-            # in Lean. Even the empty tail needs a positive budget.
+            current = FellThrough(dict(env))
             remaining = fuel
             for item in s.body:
                 remaining -= 1
-                current = self.exec(item, self._env(current), remaining)
+                current = self.exec(item, current.env, remaining)
                 if not isinstance(current, FellThrough):
                     return current
             return current if remaining > 0 else OutOfFuel()
         if isinstance(s, Ite):
-            branch = eval_cond(s.cond, env, ops)
+            branch = eval_cond(s.cond, env, self.ops)
             out = self.exec(s.then_ if branch else s.else_, env, fuel - 1)
             if not isinstance(out, FellThrough):
                 return out
             merged = dict(out.env)
             for phi in s.phis:
-                merged[phi.slot] = out.env[phi.lhs if branch else phi.rhs]
+                merged[phi.slot] = _read(out.env, phi.lhs if branch else phi.rhs)
             return FellThrough(merged)
         if isinstance(s, While):
-            return self.loop(s, env, fuel)
-        if isinstance(s, Ret):
-            return Returned(tuple(eval_expr(e, env, ops) for e in s.exprs))
-        raise TypeError(type(s))
-
-    def _env(self, outcome: Outcome) -> dict[int, Number]:
-        if isinstance(outcome, FellThrough):
-            return outcome.env
-        raise InterpreterError("internal error: continuation expected")
-
-    def loop(self, s: While, env: Mapping[int, Number], fuel: int) -> Outcome:
-        if fuel == 0:
+            # Iterative host execution avoids Python recursion-limit artifacts.
+            current = dict(env)
+            remaining = fuel
+            while remaining:
+                if not eval_cond(s.cond, current, self.ops):
+                    return FellThrough(current)
+                out = self.exec(s.body, current, remaining - 1)
+                if not isinstance(out, FellThrough):
+                    return out
+                current = dict(out.env)
+                for phi in s.phis:
+                    current[phi.slot] = _read(out.env, phi.lhs)
+                remaining -= 1
             return OutOfFuel()
-        if not eval_cond(s.cond, env, self.ops):
-            return FellThrough(dict(env))
-        out = self.exec(s.body, env, fuel - 1)
-        if not isinstance(out, FellThrough):
-            return out
-        next_env = dict(out.env)
-        for phi in s.phis:
-            next_env[phi.slot] = out.env[phi.lhs]
-        return self.loop(s, next_env, fuel - 1)
+        if isinstance(s, Ret):
+            return Returned(tuple(eval_expr(e, env, self.ops) for e in s.exprs))
+        raise TypeError(type(s))
 
 
 def run_exact(fn: Fn, args: Sequence[Number], fuel: int = DEFAULT_FUEL) -> Outcome:
@@ -212,13 +196,10 @@ def run_float(fn: Fn, args: Sequence[Number], fuel: int = DEFAULT_FUEL) -> Outco
 
 
 def rat_string(value: Fraction) -> str:
-    """Wire format shared with the Lean runner: exact ``num/den``."""
     value = Fraction(value)
     return f"{value.numerator}/{value.denominator}"
 
 
 def float_bits(value: float) -> str:
-    import struct
-
-    (bits,) = struct.unpack("<Q", struct.pack("<d", value))
+    bits, = struct.unpack(">Q", struct.pack(">d", value))
     return "0x" + format(bits, "x")

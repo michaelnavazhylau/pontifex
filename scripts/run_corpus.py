@@ -31,7 +31,6 @@ sys.path.insert(0, str(ROOT / "python"))
 
 from pyverif.errors import InterpreterError, PyVerifError  # noqa: E402
 from pyverif.interp import (  # noqa: E402
-    float_bits,
     run_exact,
     run_float,
     to_option,
@@ -41,7 +40,8 @@ from pyverif.pipeline import (  # noqa: E402
     compare_outcomes,
     find_lean_exe,
     run_lean,
-    run_python_source,
+    load_python_function,
+    observe_python,
 )
 
 CORPUS = ROOT / "corpus"
@@ -100,23 +100,6 @@ def _values(outcome):
     return None if values is None else tuple(values)
 
 
-def _as_tuple(value):
-    return value if isinstance(value, tuple) else (value,)
-
-
-def _bits(values) -> tuple[str, ...]:
-    return tuple(float_bits(float(v)) for v in values)
-
-
-def _same(source_values, ir_values, float_mode: bool) -> bool:
-    if source_values is None or ir_values is None:
-        return False
-    if len(source_values) != len(ir_values):
-        return False
-    if float_mode:
-        return _bits(source_values) == _bits(ir_values)
-    return tuple(Fraction(v) for v in source_values) == tuple(Fraction(v) for v in ir_values)
-
 
 def run(samples: int, exe: Path, verbose: bool) -> Stats:
     stats = Stats()
@@ -139,23 +122,11 @@ def run(samples: int, exe: Path, verbose: bool) -> Stats:
         stats.samples += len(vectors)
 
         source = path.read_text()
-        source_results: list[tuple[Fraction, ...] | None] = []
-        source_float_results: list[tuple[float, ...] | None] = []
-        for args in vectors:
-            try:
-                source_results.append(_as_tuple(run_python_source(source, fn.name, args)))
-            except PyVerifError:
-                source_results.append(None)
-            except ZeroDivisionError:
-                source_results.append(None)
-            try:
-                source_float_results.append(
-                    _as_tuple(run_python_source(source, fn.name, [float(a) for a in args]))
-                )
-            except PyVerifError:
-                source_float_results.append(None)
-            except ZeroDivisionError:
-                source_float_results.append(None)
+        source_fn = load_python_function(source, fn.name, str(path))
+        source_results = [observe_python(source_fn, args) for args in vectors]
+        source_float_results = [
+            observe_python(source_fn, [float(a) for a in args]) for args in vectors
+        ]
 
         exact_ir = [run_exact(fn, args, fuel=fuel) for args in vectors]
         float_ir = [run_float(fn, args, fuel=fuel) for args in vectors]
@@ -165,7 +136,7 @@ def run(samples: int, exe: Path, verbose: bool) -> Stats:
         checks: dict[str, list[str]] = {"exact": [], "float": [], "rat": []}
         for i, args in enumerate(vectors):
             exact_values = _values(exact_ir[i])
-            if not _same(source_results[i], exact_values, float_mode=False):
+            if compare_outcomes(source_results[i], exact_ir[i]) is not None:
                 checks["exact"].append(
                     f"sample {i} args={args}: python={source_results[i]} ir={exact_values}"
                 )
@@ -173,7 +144,7 @@ def run(samples: int, exe: Path, verbose: bool) -> Stats:
             if difference is not None:
                 checks["rat"].append(f"sample {i} args={args}: {difference}")
             float_values = _values(float_ir[i])
-            if not _same(source_float_results[i], float_values, float_mode=True):
+            if compare_outcomes(source_float_results[i], float_ir[i]) is not None:
                 checks["float"].append(
                     f"sample {i} args={args}: python={source_float_results[i]} ir={float_values}"
                 )
@@ -183,7 +154,7 @@ def run(samples: int, exe: Path, verbose: bool) -> Stats:
 
         line = f"{program:<26} {len(vectors):>3} samples"
         for mode in ("exact", "rat", "float"):
-            stats.comparisons += len(vectors)
+            stats.comparisons += len(vectors) * (2 if mode == "float" else 1)
             failures = checks[mode]
             if failures and (program, mode) in allow:
                 stats.allowlisted += len(failures)

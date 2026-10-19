@@ -39,6 +39,7 @@ from .ir import (
     Not,
     Or,
     Phi,
+    Pow,
     Ret,
     Seq,
     Skip,
@@ -112,7 +113,11 @@ def expr_of_ir(e: Expr) -> str:
     if isinstance(e, Slot):
         return f"(.slot {e.index})"
     if isinstance(e, Lit):
+        if e.bits is not None:
+            return f"(.floatLit {rat_literal(e.value)} {e.bits})"
         return f"(.lit {rat_literal(e.value)})"
+    if isinstance(e, Pow):
+        return f"(.pow {expr_of_ir(e.base)} {e.exponent})"
     if isinstance(e, Bin):
         return f"(.bin .{e.op} {expr_of_ir(e.lhs)} {expr_of_ir(e.rhs)})"
     if isinstance(e, Un):
@@ -256,6 +261,19 @@ def return_arity(s: Stmt) -> int:
 
 
 
+def needs_checked_backend(s: Stmt) -> bool:
+    """Use full-outcome code for control flow or possibly failing arithmetic."""
+    def checked(value):
+        if isinstance(value, dict):
+            if value.get("k") in {"ite", "while", "pow"} or value.get("op") == "div":
+                return True
+            return any(checked(v) for v in value.values())
+        if isinstance(value, list):
+            return any(checked(v) for v in value)
+        return False
+    return checked(s.to_json())
+
+
 def has_control_flow(s: Stmt) -> bool:
     if isinstance(s, (Ite, While)):
         return True
@@ -299,7 +317,7 @@ def emit_module(
 ) -> str:
     fn = translated.fn
     arity = return_arity(fn.body)
-    straight_line = not has_control_flow(fn.body)
+    straight_line = not needs_checked_backend(fn.body)
     body = ""
     if straight_line:
         emitter = Emitter(fn)
@@ -336,6 +354,8 @@ def emit_module(
     lines.append(f"    numericMode := .{NUMERIC_MODE_EXACT_RAT} }}")
     lines.append("")
     lines.append("#guard pyverifConfig.schemaMatches")
+    lines.append(f"#guard pyverifConfig.fuelPolicy == .{fuel_policy}")
+    lines.append(f"#guard pyverifConfig.numericMode == .{NUMERIC_MODE_EXACT_RAT}")
     lines.append("")
     lines.append(ir_declaration(fn.name, fn))
     from .source import desugar, source_declaration

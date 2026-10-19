@@ -154,10 +154,10 @@ def test_corrupt_codegen_is_rejected_by_kernel(mutation, tmp_path):
     baseline = check_lean(tmp_path, text)
     assert baseline.returncode == 0, baseline.stdout + baseline.stderr
     if mutation == "arithmetic":
-        corrupted = text.replace("(ops.add ", "(ops.sub ", 1)
+        corrupted = text.replace("return ops.add ", "return ops.sub ", 1)
     elif mutation == "phi":
         # Read the wrong predecessor in an otherwise intact parallel phi copy.
-        corrupted = re.sub(r"(\.set \d+ \(next.get! )\(if branch then \d+ else \d+\)", r"\g<1>0", text, count=1)
+        corrupted = re.sub(r"\(if branch then \d+ else \d+\)", "0", text, count=1)
     else:
         # The first executable leaf must not acquire a larger budget domain.
         corrupted = text.replace("| 0, _ => .outOfFuel", "| 0, env => .fellThrough env", 1)

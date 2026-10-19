@@ -14,6 +14,8 @@
 -/
 import Std
 import PyVerif.Core.IR
+import PyVerif.Core.Error
+import PyVerif.Core.Binary64
 
 namespace PyVerif
 
@@ -22,6 +24,10 @@ structure Ops (α : Type) where
   /-- Embed an exact rational literal.  For `Float` this is the (rounding)
       conversion of the rational's numeric value to binary64. -/
   ofRat : Rat → α
+  /-- Float literal carries both its exact rational value and its original bits. -/
+  ofFloatBits : Rat → UInt64 → α
+  isZero : α → Bool
+  pow : α → Nat → Eval α
   add : α → α → α
   sub : α → α → α
   mul : α → α → α
@@ -38,6 +44,9 @@ structure Ops (α : Type) where
 /-- Exact rational arithmetic: the mathematical reading of a program. -/
 def Ops.rat : Ops Rat where
   ofRat := id
+  ofFloatBits := fun q _ => q
+  isZero := fun x => decide (x = 0)
+  pow := fun x n => .ok (x ^ n)
   add := (· + ·)
   sub := (· - ·)
   mul := (· * ·)
@@ -51,20 +60,20 @@ def Ops.rat : Ops Rat where
   eq := fun a b => decide (a = b)
   ne := fun a b => decide (a ≠ b)
 
-/-- IEEE-754 binary64 arithmetic: the operational reading of Python `float`.
-
-    `ofRat q` is computed as `q.num / q.den` in binary64. When both components
-    are represented exactly, this gives one correctly rounded division. Not
-    all frontend literals satisfy that condition: subnormal literals can have
-    denominators beyond the finite Float range. Extreme rationals can overflow,
-    underflow, or double-round; conversion correctness remains a modelling gap.
-
-    Note that `Float` arithmetic in Lean is compiled to native double
-    operations, so it agrees with CPython for `+ - * /` under the assumption
-    that Python's compiler does not fuse operations (adversarial expressions
-    with division by zero, NaN and `-0.0` are outside the verified subset). -/
+/-- Built-in Float numeric backend. Floating literals use their original bits,
+    not rational numerator/denominator conversion. ofRat remains for integer
+    literals and legacy rational inputs; large integer coercions are not a full
+    model of Python's numeric tower. Checked division lives in Semantics.
+    Float.pow raises overflow when a finite base produces infinity.
+    The bit-authoritative wire backend below additionally avoids the built-in
+    Float model's NaN canonicalization during identity transport. -/
 def Ops.float : Ops Float where
   ofRat := fun q => Float.ofInt q.num / Float.ofNat q.den
+  ofFloatBits := fun _ bits => Float.ofBits bits
+  isZero := fun x => x == 0.0
+  pow := fun x n =>
+    let y := Float.pow x (Float.ofNat n)
+    if y.isInf && !x.isInf then .error (.failed .overflow) else .ok y
   add := (· + ·)
   sub := (· - ·)
   mul := (· * ·)
@@ -77,5 +86,26 @@ def Ops.float : Ops Float where
   ge := (· ≥ ·)
   eq := (· == ·)
   ne := (!· == ·)
+
+/-- Bit-preserving wire backend. Numeric operations use the built-in Float
+    model; identity/literals/sign changes preserve the original representation.
+    A computed NaN may have a canonical payload, as documented in the policy. -/
+def Ops.binary64 : Ops Binary64 where
+  ofRat := fun q => .ofFloat (Ops.float.ofRat q)
+  ofFloatBits := fun _ bits => .ofBits bits
+  isZero := fun x => x.toFloat == 0.0
+  pow := fun x n => (Ops.float.pow x.toFloat n).map Binary64.ofFloat
+  add := fun x y => .ofFloat (x.toFloat + y.toFloat)
+  sub := fun x y => .ofFloat (x.toFloat - y.toFloat)
+  mul := fun x y => .ofFloat (x.toFloat * y.toFloat)
+  div := fun x y => .ofFloat (x.toFloat / y.toFloat)
+  neg := Binary64.neg
+  abs := Binary64.abs
+  lt := fun x y => x.toFloat < y.toFloat
+  le := fun x y => x.toFloat ≤ y.toFloat
+  gt := fun x y => x.toFloat > y.toFloat
+  ge := fun x y => x.toFloat ≥ y.toFloat
+  eq := fun x y => x.toFloat == y.toFloat
+  ne := fun x y => !(x.toFloat == y.toFloat)
 
 end PyVerif

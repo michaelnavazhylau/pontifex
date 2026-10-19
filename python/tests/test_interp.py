@@ -9,6 +9,7 @@ import pytest
 from pyverif.errors import InterpreterError
 from pyverif.interp import (
     FellThrough,
+    Failed,
     OutOfFuel,
     Returned,
     float_bits,
@@ -73,12 +74,11 @@ def test_clamped_branch_merge():
     )
 
 
-def test_division_by_zero_is_outside_the_model():
+def test_division_by_zero_is_an_observable_failure():
     from pyverif.frontend import translate
 
     fn = translate("def f(x: float, y: float):\n    return x / y\n", filename="div.py").fn
-    with pytest.raises(InterpreterError):
-        run_exact(fn, [Fraction(1), Fraction(0)])
+    assert run_exact(fn, [Fraction(1), Fraction(0)]) == Failed("divisionByZero")
 
 
 def test_wire_formats():

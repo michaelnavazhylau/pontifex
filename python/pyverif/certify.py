@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from .ir import (
     And, Assign, Bin, Cmp, Cond, Expr, Fn, Ite, Lit, Not, Or, Ret, Seq,
-    Skip, Slot, Stmt, Un, Where, While,
+    Skip, Slot, Stmt, Un, Where, While, Pow,
 )
 
 
@@ -27,34 +27,46 @@ def emit_certified(fn: Fn) -> str:
 
     def expr(e: Expr) -> str:
         if isinstance(e, Slot):
-            return f"(env.get! {e.index})"
+            return f"(readSlot env {e.index})"
         if isinstance(e, Lit):
-            return f"(ops.ofRat {rat_literal(e.value)})"
+            literal = f"ops.ofRat {rat_literal(e.value)}"
+            if e.bits is not None:
+                literal = f"ops.ofFloatBits {rat_literal(e.value)} {e.bits}"
+            return f"(.ok ({literal}))"
+        if isinstance(e, Pow):
+            return f"(do let x ← {expr(e.base)}; ops.pow x {e.exponent})"
         if isinstance(e, Bin):
-            return f"(ops.{e.op} {expr(e.lhs)} {expr(e.rhs)})"
+            operation = f"return ops.{e.op} x y"
+            if e.op == "div":
+                operation = "checkedDiv ops x y"
+            return f"(do let x ← {expr(e.lhs)}; let y ← {expr(e.rhs)}; {operation})"
         if isinstance(e, Un):
-            return f"(ops.{e.op} {expr(e.arg)})"
+            return f"(do let x ← {expr(e.arg)}; return ops.{e.op} x)"
         raise TypeError(type(e))
 
     def cond(c: Cond) -> str:
         if isinstance(c, Cmp):
-            return f"(ops.{c.op} {expr(c.lhs)} {expr(c.rhs)})"
-        if isinstance(c, (And, Or)):
-            op = "&&" if isinstance(c, And) else "||"
-            return f"({cond(c.lhs)} {op} {cond(c.rhs)})"
+            return f"(do let x ← {expr(c.lhs)}; let y ← {expr(c.rhs)}; return ops.{c.op} x y)"
+        if isinstance(c, And):
+            return f"(do if ← {cond(c.lhs)} then {cond(c.rhs)} else return false)"
+        if isinstance(c, Or):
+            return f"(do if ← {cond(c.lhs)} then return true else {cond(c.rhs)})"
         if isinstance(c, Not):
-            return f"(!{cond(c.arg)})"
+            return f"(do return !(← {cond(c.arg)}))"
         if isinstance(c, Where):
-            return "true" if c.value else "false"
+            return f"(.ok {'true' if c.value else 'false'})"
         raise TypeError(type(c))
 
     def copies(phis, source: str, choice: str) -> str:
-        # All reads use a snapshot, NOT the partly updated accumulator.
-        result = source
-        for p in phis:
-            index = p.lhs if choice == "back" else f"(if branch then {p.lhs} else {p.rhs})"
-            result = f"({result}.set {p.slot} ({source}.get! {index}))"
-        return result
+        # A monadic parallel copy: every read uses the original snapshot.
+        entries = ", ".join(
+            f"({p.slot}, " + (str(p.lhs) if choice == "back" else
+            f"(if branch then {p.lhs} else {p.rhs})") + ")" for p in phis
+        )
+        return (
+            f"([{entries}].foldlM (fun acc (target, origin) => do "
+            f"let x ← readSlot {source} origin; return acc.set target x) {source})"
+        )
 
     def block(s: Stmt) -> str:
         nonlocal counter
@@ -65,9 +77,10 @@ def emit_certified(fn: Fn) -> str:
         if isinstance(s, Skip):
             body = ".fellThrough env"
         elif isinstance(s, Assign):
-            body = f".fellThrough (env.set {s.slot} {expr(s.expr)})"
+            body = f"Outcome.fromEval {expr(s.expr)} (fun x => .fellThrough (env.set {s.slot} x))"
         elif isinstance(s, Ret):
-            body = ".returned [" + ", ".join(expr(e) for e in s.exprs) + "]"
+            values = "[" + ", ".join(expr(e) for e in s.exprs) + "]"
+            body = f"Outcome.fromEval ({values}.mapM id) Outcome.returned"
         elif isinstance(s, Seq):
             if not s.body:
                 body = ".fellThrough env"
@@ -75,31 +88,27 @@ def emit_certified(fn: Fn) -> str:
                 first = block(s.body[0])
                 rest = block(Seq(s.body[1:]))
                 children = [first, rest]
-                body = (
-                    f"match {first} ops fuel env with\n"
-                    f"| .fellThrough next => {rest} ops fuel next\n"
-                    f"| other => other"
-                )
+                body = f"({first} ops fuel env).bindEnv (fun next => {rest} ops fuel next)"
         elif isinstance(s, Ite):
             then = block(s.then_)
             otherwise = block(s.else_)
             children = [then, otherwise]
             body = (
-                f"let branch := {cond(s.cond)}\n"
-                f"match (if branch then {then} ops fuel env else {otherwise} ops fuel env) with\n"
-                f"| .fellThrough next => .fellThrough {copies(s.phis, 'next', 'branch')}\n"
-                f"| other => other"
+                f"Outcome.fromEval {cond(s.cond)} fun branch =>\n"
+                f"  (if branch then {then} ops fuel env else {otherwise} ops fuel env).bindEnv fun next =>\n"
+                f"    Outcome.fromEval {copies(s.phis, 'next', 'branch')} Outcome.fellThrough"
             )
         elif isinstance(s, While):
             child = block(s.body)
             children = [child]
             recursive = True
             body = (
-                f"if {cond(s.cond)} then\n"
-                f"  match {child} ops fuel env with\n"
-                f"  | .fellThrough next => {name} ops fuel {copies(s.phis, 'next', 'back')}\n"
-                f"  | other => other\n"
-                f"else .fellThrough env"
+                f"Outcome.fromEval {cond(s.cond)} fun branch =>\n"
+                f"  if branch then\n"
+                f"    ({child} ops fuel env).bindEnv fun next =>\n"
+                f"      Outcome.fromEval {copies(s.phis, 'next', 'back')} fun header =>\n"
+                f"        {name} ops fuel header\n"
+                f"  else .fellThrough env"
             )
         else:
             raise TypeError(type(s))
@@ -139,11 +148,11 @@ def emit_certified(fn: Fn) -> str:
     blocks.append(
         f"/-- The compiled function preserves full outcomes, including exhaustion. -/\n"
         f"def {fn.name}Compiled (ops : Ops α) [Inhabited α] (fuel : Nat) (args : List α) :\n"
-        f"    Outcome α := {root} ops fuel args\n\n"
+        f"    Outcome α := {root} ops fuel (args.map some)\n\n"
         f"theorem {fn.name}_compiled_link (ops : Ops α) [Inhabited α]\n"
         f"    (fuel : Nat) (args : List α) :\n"
         f"    {fn.name}Compiled ops fuel args = Fn.run ops {fn.name}IR fuel args := by\n"
-        f"  exact {root}_correct ops fuel args\n\n"
+        f"  exact {root}_correct ops fuel (args.map some)\n\n"
         f"/-- Public exact-rational tuple interface. `none` includes fuel exhaustion. -/\n"
         f"def {fn.name} (fuel : Nat) {params} : {option_type(arity)} :=\n"
         f"  ({fn.name}Compiled Ops.rat fuel [{args_list}]).toOption.map (fun vs => {projection})\n\n"

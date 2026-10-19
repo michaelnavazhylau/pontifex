@@ -502,6 +502,52 @@
           "max": 8
         }
       ]
+    },
+    {
+      "file": "checked_division.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -2,
+          "max": 2
+        }
+      ]
+    },
+    {
+      "file": "short_circuit.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        },
+        {
+          "kind": "rat",
+          "min": -2,
+          "max": 2
+        }
+      ]
+    },
+    {
+      "file": "power.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -4,
+          "max": 4
+        }
+      ]
     }
   ]
 }

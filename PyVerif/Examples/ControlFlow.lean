@@ -13,7 +13,9 @@ theorem clampedStep_matches_spec (x v dt limit : Rat) :
   rw [Generated.ClampedStep.step_link]
   by_cases h : x + v * dt > limit <;>
     simp [Generated.ClampedStep.stepIR, Fn.run, exec, evalE, evalC,
-      Ops.rat, Env.get!, Env.get?, Env.set, mergePhis, Outcome.toOption, h]
+      Ops.rat, Env.get?, Env.set, readSlot, mergePhis,
+      Outcome.fromEval, Outcome.bindEnv, Outcome.toOption, bind, pure,
+      Except.bind, Except.pure, h]
 
 /-- Instantiating the parametric certificate at Float needs no floating-point
     computation or algebraic assumptions in the proof. -/

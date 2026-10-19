@@ -10,12 +10,14 @@ Public surface:
 
 from .errors import FrontendError, InterpreterError, PyVerifError, UnsupportedError
 from .frontend import Translated, translate
-from .interp import FellThrough, OutOfFuel, Returned, run_exact, run_float
+from .interp import FellThrough, OutOfFuel, Returned, Failed, Stuck, run_exact, run_float
 from .pipeline import Artifacts, compile_file, compile_source
 
 __all__ = [
     "Artifacts",
     "FellThrough",
+    "Failed",
+    "Stuck",
     "FrontendError",
     "InterpreterError",
     "OutOfFuel",

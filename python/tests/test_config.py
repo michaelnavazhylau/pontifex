@@ -46,10 +46,16 @@ def test_python_decoder_rejects_wrong_schema_version():
         fn_of_json(payload)
 
 
-def test_stale_schema_version_breaks_the_build(tmp_path):
+@pytest.mark.parametrize("field", ["schema", "fuel", "numeric"])
+def test_stale_schema_version_breaks_the_build(tmp_path, field):
     """`#guard` must turn a version drift into a compile error."""
     text = _generated_example()
-    corrupted = text.replace(f"irVersion := {IR_VERSION}", f"irVersion := {IR_VERSION + 1}", 1)
+    if field == "schema":
+        corrupted = text.replace(f"irVersion := {IR_VERSION}", f"irVersion := {IR_VERSION + 1}", 1)
+    elif field == "fuel":
+        corrupted = text.replace("fuelPolicy := .allFuel", "fuelPolicy := .literal", 1)
+    else:
+        corrupted = text.replace("numericMode := .exactRat", "numericMode := .binary64", 1)
     assert corrupted != text
     path = tmp_path / "Stale.lean"
     path.write_text(corrupted)
@@ -58,7 +64,7 @@ def test_stale_schema_version_breaks_the_build(tmp_path):
     )
     assert proc.returncode != 0
     output = (proc.stdout + proc.stderr).lower()
-    assert "schemamatches" in output or "did not evaluate" in output
+    assert "did not evaluate" in output
 
 
 def test_lean_runner_rejects_stale_ir_json(tmp_path, lean_exe):

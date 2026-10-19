@@ -35,6 +35,8 @@ other than ``abs``.
 from __future__ import annotations
 
 import ast
+import math
+import struct
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Iterable, Sequence
@@ -53,6 +55,7 @@ from .ir import (
     Not,
     Or,
     Phi,
+    Pow,
     Ret,
     Seq,
     Skip,
@@ -193,8 +196,11 @@ class _Lowerer:
             if isinstance(value, int):
                 return Lit(Fraction(value))
             if isinstance(value, float):
+                if not math.isfinite(value):
+                    raise self.err(node, "non-finite float literals are not supported")
                 num, den = value.as_integer_ratio()
-                return Lit(Fraction(num, den))
+                bits, = struct.unpack(">Q", struct.pack(">d", value))
+                return Lit(Fraction(num, den), bits)
             raise self.err(node, f"literal of type {type(value).__name__} is not supported")
         if isinstance(node, ast.BinOp):
             if isinstance(node.op, ast.Pow):
@@ -254,7 +260,7 @@ class _Lowerer:
             raise self.err(
                 node,
                 "only '**' with an integer literal exponent is supported "
-                "(translated by repeated multiplication)",
+                "(represented by a backend-specific power operation)",
             )
         n = exponent.value
         if isinstance(exponent.value, bool) or n < 0 or n > MAX_POW_EXPONENT:
@@ -264,10 +270,7 @@ class _Lowerer:
                 "(non-integer powers would require a transcendental function)",
             )
         base = self.expr(node.left)
-        result: Expr = Lit(Fraction(1))
-        for _ in range(n):
-            result = Bin("mul", result, base)
-        return result
+        return Pow(base, n)
 
     # -- conditions --------------------------------------------------------
 
