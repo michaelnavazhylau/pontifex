@@ -333,7 +333,10 @@ verified-path assertion, and Python integer/`min`/`max`/conditional semantics.
 arithmetic proofs, rational-coefficient normalization, and a CFG-first IR with
 a verified structuring pass.
 
-See [`TODO.md`](TODO.md) for ordered tasks and acceptance criteria.
+Tracked as GitHub issues: [epic #15](https://github.com/michaelnavazhylau/pyverif/issues/15)
+(P3: [#1–#6](https://github.com/michaelnavazhylau/pyverif/milestone/1), P4:
+[#7–#14](https://github.com/michaelnavazhylau/pyverif/milestone/2)). See
+[`TODO.md`](TODO.md) for ordered tasks and acceptance criteria.
 
 ---
 

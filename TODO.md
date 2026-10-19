@@ -1,5 +1,9 @@
 # TODO — implementation roadmap
 
+> GitHub tracking: epic [#15](https://github.com/michaelnavazhylau/pyverif/issues/15);
+> P3 issues [#1–#6](https://github.com/michaelnavazhylau/pyverif/milestone/1);
+> P4 issues [#7–#14](https://github.com/michaelnavazhylau/pyverif/milestone/2).
+
 Ordered by value per unit of risk, derived from the current trust report
 (`docs/TRUST.md`) and the Charon/Aeneas review (`docs/RELATED_WORK.md`).
 
