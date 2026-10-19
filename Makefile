@@ -3,13 +3,17 @@
 PY ?= python3
 LAKE ?= lake
 
-.PHONY: all lean gen test check clean fmt corpus rejections float-boundaries
+.PHONY: all lean mathlib-spike gen test check clean fmt corpus rejections float-boundaries
 
 all: lean test
 
 ## Lean: library, generated examples, and the conformance runner
 lean:
 	$(LAKE) build
+
+## Optional Mathlib proof-power spike (not part of the default build)
+mathlib-spike:
+	$(LAKE) build MathlibSpike
 
 ## Regenerate the checked-in translations of examples/
 gen:

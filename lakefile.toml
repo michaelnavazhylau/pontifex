@@ -2,7 +2,15 @@ name = "pontifex"
 version = "0.1.0"
 defaultTargets = ["Pontifex", "pontifex"]
 
-# Core-Lean-only build (no Mathlib, no Physlib).  See docs/TRUST.md for the
+# Spike-only dependency. The default Pontifex library and all generated modules
+# remain Mathlib-free; only the `MathlibSpike` target imports it.
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4.git"
+rev = "v4.35.0"
+
+# The default build is core-Lean-only. The optional Mathlib target below is
+# not imported by `Pontifex` or any generated module. See docs/TRUST.md for the
 # consequences: everything in `Pontifex/Core` is proved, but general polynomial
 # identities over `Rat` cannot be discharged without a ring tactic, so domain
 # proofs that need one are marked in `Pontifex/Spec/Mechanics.lean`.
@@ -12,3 +20,7 @@ name = "Pontifex"
 [[lean_exe]]
 name = "pontifex"
 root = "Main"
+
+# Optional proof-power experiment; not part of the default build.
+[[lean_lib]]
+name = "MathlibSpike"
