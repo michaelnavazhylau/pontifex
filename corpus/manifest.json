@@ -564,6 +564,45 @@
           "max": 5
         }
       ]
+    },
+    {
+      "file": "vector_step.py",
+      "function": "integrate",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -2,
+          "max": 2
+        },
+        {
+          "kind": "nat",
+          "max": 6
+        }
+      ]
+    },
+    {
+      "file": "array_read_bounds.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "nat",
+          "max": 4
+        }
+      ]
+    },
+    {
+      "file": "array_store_bounds.py",
+      "function": "step",
+      "fuel": 64,
+      "params": [
+        {
+          "kind": "rat",
+          "min": -2,
+          "max": 2
+        }
+      ]
     }
   ]
 }

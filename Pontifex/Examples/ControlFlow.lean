@@ -12,7 +12,7 @@ theorem clampedStep_matches_spec (x v dt limit : Rat) :
       some (if x + v * dt > limit then (limit, 0) else (x + v * dt, v)) := by
   rw [Generated.ClampedStep.step_link]
   by_cases h : x + v * dt > limit <;>
-    simp [Generated.ClampedStep.stepIR, Fn.run, exec, evalE, evalC,
+    simp [Generated.ClampedStep.stepIR, Fn.run, exec, evalS, evalV, Val.asScalar, evalC,
       Ops.rat, Env.get?, Env.set, readSlot, mergePhis,
       Outcome.fromEval, Outcome.bindEnv, Outcome.toOption, bind, pure,
       Except.bind, Except.pure, h]

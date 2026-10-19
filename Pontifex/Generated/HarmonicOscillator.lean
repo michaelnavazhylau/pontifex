@@ -17,7 +17,7 @@ open Pontifex
 
 /-- Semantic configuration this artifact was generated under. -/
 def pontifexConfig : Config :=
-  { irVersion := 2
+  { irVersion := 3
     fuelPolicy := .literal
     numericMode := .exactRat }
 

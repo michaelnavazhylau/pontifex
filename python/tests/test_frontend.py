@@ -11,14 +11,18 @@ from pontifex.frontend import translate
 from pontifex.interp import run_exact, to_option
 from pontifex.ir import (
     And,
+    ArrayLit,
     Assign,
     Bin,
     Cmp,
+    Index,
     Ite,
+    Len,
     Lit,
     Not,
     Ret,
     Seq,
+    Set,
     Slot,
     Pow,
     Un,
@@ -351,4 +355,57 @@ def test_function_must_return_on_every_path():
     with pytest.raises(FrontendError, match="does not return on every path"):
         translate(
             "def f(x: float):\n    if x > 0:\n        return x\n", filename="partial.py"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Arrays (T12)
+# ---------------------------------------------------------------------------
+
+ARRAY_PROGRAM = """
+def f(i: float, dt: float):
+    xs = [1.0, 2.0, 3.0]
+    xs[i] = xs[i] + dt
+    return xs[0], xs[1], xs[2], len(xs)
+"""
+
+
+def test_array_literal_store_and_len_lower_to_ssa():
+    t = translate(textwrap.dedent(ARRAY_PROGRAM), filename="arr.py")
+    assigns = [s for s in stmts(t.fn.body) if isinstance(s, Assign)]
+    assert isinstance(assigns[0].expr, ArrayLit)
+    assert isinstance(assigns[1].expr, Set)
+    # xs starts in slot 2; the store writes a *fresh* slot, so the update is a
+    # functional array value and earlier bindings are not aliased.
+    assert assigns[1].expr.array == Slot(2)
+    assert assigns[1].slot == 3
+    assert isinstance(assigns[1].expr.value, Bin)
+    assert isinstance(assigns[1].expr.value.lhs, Index)
+    ret = [s for s in stmts(t.fn.body) if isinstance(s, Ret)][0]
+    assert isinstance(ret.exprs[-1], Len)
+    _agrees_with_python(textwrap.dedent(ARRAY_PROGRAM), [(1, 0), (0, 2)])
+
+
+def test_array_kinds_are_tracked_through_branches():
+    program = """
+        def f(c: float, dt: float):
+            if c > 0:
+                xs = [1.0, 2.0]
+            else:
+                xs = [3.0, 4.0]
+            xs[0] = xs[0] + dt
+            return xs[0], xs[1]
+    """
+    t = translate(textwrap.dedent(program), filename="merge.py")
+    ite = [s for s in stmts(t.fn.body) if isinstance(s, Ite)][0]
+    assert len(ite.phis) == 1  # one phi carries the array through the merge
+    _agrees_with_python(textwrap.dedent(program), [(1, 1), (-1, 1)])
+
+
+def test_scalar_and_array_kinds_cannot_be_confused():
+    with pytest.raises(UnsupportedError, match="scalar, not an array"):
+        translate("def f(x: float):\n    return x[0]\n", filename="s.py")
+    with pytest.raises(UnsupportedError, match="array and cannot be used"):
+        translate(
+            "def f(x: float):\n    xs = [1.0]\n    return xs\n", filename="a.py"
         )

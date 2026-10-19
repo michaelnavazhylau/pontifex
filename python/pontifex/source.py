@@ -73,6 +73,29 @@ class Un(SExpr):
     arg: SExpr
 
 
+@dataclass(frozen=True)
+class Index(SExpr):
+    array: SExpr
+    index: SExpr
+
+
+@dataclass(frozen=True)
+class Len(SExpr):
+    array: SExpr
+
+
+@dataclass(frozen=True)
+class ArrayLit(SExpr):
+    items: tuple[SExpr, ...]
+
+
+@dataclass(frozen=True)
+class Set(SExpr):
+    array: SExpr
+    index: SExpr
+    value: SExpr
+
+
 class SCond:
     pass
 
@@ -239,7 +262,20 @@ class _Desugar:
                 and not node.keywords
             ):
                 return Un("abs", self.expr(node.args[0]))
-            raise self.err(node, "only abs(x) calls are supported")
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id == "len"
+                and len(node.args) == 1
+                and not node.keywords
+            ):
+                return Len(self.expr(node.args[0]))
+            raise self.err(node, "only abs(x) and len(xs) calls are supported")
+        if isinstance(node, ast.Subscript):
+            if isinstance(node.slice, ast.Slice):
+                raise self.err(node, "slices are not supported")
+            return Index(self.expr(node.value), self.expr(node.slice))
+        if isinstance(node, ast.List):
+            return ArrayLit(tuple(self.expr(e) for e in node.elts))
         raise self.err(node, f"expression '{type(node).__name__}' is not supported")
 
     def cond(self, node: ast.expr) -> SCond:
@@ -275,9 +311,20 @@ class _Desugar:
                 return Skip()
             raise self.err(node, "expression statements are not supported")
         if isinstance(node, ast.Assign):
-            if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
-                raise self.err(node, "only 'name = expr' is supported")
-            return Assign(self.ids(node.targets[0].id), self.expr(node.value))
+            if len(node.targets) != 1:
+                raise self.err(node, "chained assignment is not supported")
+            target = node.targets[0]
+            if isinstance(target, ast.Subscript):
+                if not isinstance(target.value, ast.Name):
+                    raise self.err(target, "only subscript assignment to a named array is supported")
+                var = self.ids(target.value.id)
+                return Assign(
+                    var,
+                    Set(Var(var), self.expr(target.slice), self.expr(node.value)),
+                )
+            if not isinstance(target, ast.Name):
+                raise self.err(node, "only 'name = expr' and 'xs[i] = expr' are supported")
+            return Assign(self.ids(target.id), self.expr(node.value))
         if isinstance(node, ast.AnnAssign):
             if not isinstance(node.target, ast.Name) or node.value is None:
                 raise self.err(node, "only 'name: type = expr' is supported")
@@ -345,6 +392,15 @@ def _expr(e: SExpr) -> str:
         return f"(.bin .{e.op} {_expr(e.lhs)} {_expr(e.rhs)})"
     if isinstance(e, Un):
         return f"(.un .{e.op} {_expr(e.arg)})"
+    if isinstance(e, Index):
+        return f"(.index {_expr(e.array)} {_expr(e.index)})"
+    if isinstance(e, Len):
+        return f"(.len {_expr(e.array)})"
+    if isinstance(e, ArrayLit):
+        items = ", ".join(_expr(i) for i in e.items)
+        return f"(.arrayLit [{items}])"
+    if isinstance(e, Set):
+        return f"(.set {_expr(e.array)} {_expr(e.index)} {_expr(e.value)})"
     raise TypeError(type(e))
 
 

@@ -38,7 +38,33 @@ inductive UnOp where
   | neg | abs
   deriving Repr, DecidableEq, Inhabited
 
-/-- Scalar expressions over slots. -/
+/-- Runtime values held in slots.
+
+    Scalars are the arithmetic backend's numbers.  Arrays are fixed-length
+    `List` values of scalars: length is intrinsic, and every access is
+    bounds-checked.  There are no nested arrays, references, or aliasing.
+
+    Keeping arrays as values (rather than a second environment) means slots,
+    phis, `Outcome`, `exec`, `Fn.run`, and `exec_mono` keep their existing
+    shape: an array can merge through an `if` or a loop header just like a
+    scalar. -/
+inductive Val (α : Type) where
+  | scalar : α → Val α
+  | array : List α → Val α
+  deriving Repr, Inhabited, DecidableEq
+
+/-- Scalar-typed expressions over slots.
+
+    Evaluation is value-typed (`evalV`); scalar contexts unwrap with
+    `Val.asScalar`, so an array where a scalar is required is `stuck`.
+
+    * `index a i` reads element `i` of array `a`; a bad or out-of-range index
+      is `failed .indexOutOfBounds`.
+    * `len a` is the array's length as a scalar.
+    * `arrayLit es` builds a fresh array from scalar expressions.
+    * `set a i v` is a functional update: it produces a new array value.  This
+      is what makes `xs[i] = v` SSA-friendly (the frontend assigns the result
+      to a fresh slot for `xs`) and keeps the IR free of aliasing. -/
 inductive Expr where
   | slot : Nat → Expr
   | lit : Rat → Expr
@@ -46,7 +72,11 @@ inductive Expr where
   | pow : Expr → Nat → Expr
   | bin : BinOp → Expr → Expr → Expr
   | un : UnOp → Expr → Expr
-  deriving Repr, DecidableEq
+  | index : Expr → Expr → Expr
+  | len : Expr → Expr
+  | arrayLit : List Expr → Expr
+  | set : Expr → Expr → Expr → Expr
+  deriving Repr
 
 /-- Boolean-sorted expressions. -/
 inductive Cond where
@@ -55,7 +85,7 @@ inductive Cond where
   | or : Cond → Cond → Cond
   | not : Cond → Cond
   | const : Bool → Cond
-  deriving Repr, DecidableEq
+  deriving Repr
 
 /-- A control-flow join: `slot := if cond then env[lhs] else env[rhs]`.
 
@@ -71,7 +101,7 @@ structure Phi where
   deriving Repr, DecidableEq
 
 /-- Structured statements.  There is no unstructured `goto`; the frontend
-    guarantees a single structured exit (`ret` at the end of the function). -/
+    guarantees every path ends in a `ret`. -/
 inductive Stmt where
   | skip
   | assign : Nat → Expr → Stmt

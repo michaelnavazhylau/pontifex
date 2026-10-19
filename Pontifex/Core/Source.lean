@@ -30,7 +30,15 @@ inductive Expr where
   | pow : Expr → Nat → Expr
   | bin : BinOp → Expr → Expr → Expr
   | un : UnOp → Expr → Expr
-  deriving Repr, DecidableEq
+  /-- `a[i]` (bounds checked in the IR semantics). -/
+  | index : Expr → Expr → Expr
+  /-- `len(a)`. -/
+  | len : Expr → Expr
+  /-- `[e1, e2, ...]`, one-dimensional. -/
+  | arrayLit : List Expr → Expr
+  /-- Functional update `a[i] = v` producing a new array. -/
+  | set : Expr → Expr → Expr → Expr
+  deriving Repr
 
 /-- Boolean conditions of the core source language. -/
 inductive Cond where
@@ -39,7 +47,7 @@ inductive Cond where
   | or : Cond → Cond → Cond
   | not : Cond → Cond
   | const : Bool → Cond
-  deriving Repr, DecidableEq
+  deriving Repr
 
 /-- Statements of the core source language. -/
 inductive Stmt where

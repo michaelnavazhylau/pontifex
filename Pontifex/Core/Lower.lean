@@ -53,6 +53,8 @@ def require (st : LowerState) (v : Nat) : Except String Nat :=
 
 end LowerState
 
+mutual
+
 /-- Desugar-free expression lowering. -/
 def lowerExpr (st : LowerState) : Expr → Except String _root_.Pontifex.Expr
   | .var v =>
@@ -66,6 +68,29 @@ def lowerExpr (st : LowerState) : Expr → Except String _root_.Pontifex.Expr
       return .bin op (← lowerExpr st a) (← lowerExpr st b)
   | .un op a => do
       return .un op (← lowerExpr st a)
+  | .index a i => do
+      return .index (← lowerExpr st a) (← lowerExpr st i)
+  | .len a => do
+      return .len (← lowerExpr st a)
+  | .arrayLit es => do
+      return .arrayLit (← lowerExprs st es)
+  | .set a i v => do
+      return .set (← lowerExpr st a) (← lowerExpr st i) (← lowerExpr st v)
+
+/-- Lower the elements of an array literal.
+
+    This is a separate structural recursion on the list (rather than
+    `List.mapM`) so that the equation compiler keeps `lowerExpr` structurally
+    recursive and the kernel can still evaluate it for `rfl` certificates. -/
+def lowerExprs (st : LowerState) :
+    List Expr → Except String (List _root_.Pontifex.Expr)
+  | [] => .ok []
+  | e :: rest => do
+      let e' ← lowerExpr st e
+      let rest' ← lowerExprs st rest
+      return e' :: rest'
+
+end
 
 /-- Condition lowering. -/
 def lowerCond (st : LowerState) : Cond → Except String _root_.Pontifex.Cond

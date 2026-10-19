@@ -109,14 +109,14 @@ theorem total_to_partial (o : Ops α) [Inhabited α] (f : Fn) (args : List α)
   rcases h with ⟨n, values, hn, hp⟩
   intro m
   by_cases le : n ≤ m
-  · have done : exec o n f.body (args.map some) ≠ .outOfFuel := by
+  · have done : exec o n f.body (args.map (fun x => some (.scalar x))) ≠ .outOfFuel := by
       change f.run o n args ≠ .outOfFuel
       rw [hn]; intro bad; cases bad
-    have eq := exec_completed_stable o le f.body (args.map some) done
+    have eq := exec_completed_stable o le f.body (args.map (fun x => some (.scalar x))) done
     change f.run o m args = f.run o n args at eq
     rw [eq, hn]; exact hp
   · have le' : m ≤ n := by omega
-    have ref := exec_mono o le' f.body (args.map some)
+    have ref := exec_mono o le' f.body (args.map (fun x => some (.scalar x)))
     rcases ref with exhausted | same
     · change f.run o m args = .outOfFuel at exhausted
       simp only [exhausted]

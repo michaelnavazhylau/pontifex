@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/array_alias.py:3:10: array assignment copies are not supported (no aliasing): assign a fresh list literal to 'ys' instead

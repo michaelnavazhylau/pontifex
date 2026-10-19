@@ -13,8 +13,8 @@ versus IR equivalence, NOT Python versus IR equivalence.
 from __future__ import annotations
 
 from .ir import (
-    And, Assign, Bin, Cmp, Cond, Expr, Fn, Ite, Lit, Not, Or, Ret, Seq,
-    Skip, Slot, Stmt, Un, Where, While, Pow,
+    And, ArrayLit, Assign, Bin, Cmp, Cond, Expr, Fn, Index, Ite, Len, Lit, Not,
+    Or, Pow, Ret, Seq, Set, Skip, Slot, Stmt, Un, Where, While,
 )
 
 
@@ -25,28 +25,73 @@ def emit_certified(fn: Fn) -> str:
     blocks: list[str] = []
     counter = 0
 
-    def expr(e: Expr) -> str:
+    def value(e: Expr) -> str:
+        """Emitted code for `evalV` on `e`: an `Eval (Val α)`."""
         if isinstance(e, Slot):
             return f"(readSlot env {e.index})"
         if isinstance(e, Lit):
             literal = f"ops.ofRat {rat_literal(e.value)}"
             if e.bits is not None:
                 literal = f"ops.ofFloatBits {rat_literal(e.value)} {e.bits}"
-            return f"(.ok ({literal}))"
+            return f"((.ok (Val.scalar ({literal}))) : Eval (Val α))"
         if isinstance(e, Pow):
-            return f"(do let x ← {expr(e.base)}; ops.pow x {e.exponent})"
+            return (
+                f"(do let v ← {value(e.base)}; let x ← Val.asScalar v; "
+                f"return Val.scalar (← ops.pow x {e.exponent}))"
+            )
         if isinstance(e, Bin):
-            operation = f"return ops.{e.op} x y"
+            operation = f"return Val.scalar (ops.{e.op} x y)"
             if e.op == "div":
-                operation = "checkedDiv ops x y"
-            return f"(do let x ← {expr(e.lhs)}; let y ← {expr(e.rhs)}; {operation})"
+                operation = "return Val.scalar (← checkedDiv ops x y)"
+            return (
+                f"(do let va ← {value(e.lhs)}; let x ← Val.asScalar va; "
+                f"let vb ← {value(e.rhs)}; let y ← Val.asScalar vb; {operation})"
+            )
         if isinstance(e, Un):
-            return f"(do let x ← {expr(e.arg)}; return ops.{e.op} x)"
+            return (
+                f"(do let v ← {value(e.arg)}; let x ← Val.asScalar v; "
+                f"return Val.scalar (ops.{e.op} x))"
+            )
+        if isinstance(e, Index):
+            return (
+                f"(do let xs ← {value(e.array)}; let vi ← {value(e.index)}; "
+                f"let idx ← Val.asScalar vi; indexVal ops xs idx)"
+            )
+        if isinstance(e, Len):
+            return (
+                f"(do let xs ← {value(e.array)}; "
+                f"return Val.scalar (← lenVal ops xs))"
+            )
+        if isinstance(e, ArrayLit):
+            return f"(do let xs ← {scalars(e.items)}; return Val.array xs)"
+        if isinstance(e, Set):
+            return (
+                f"(do let vv ← {value(e.value)}; let value ← Val.asScalar vv; "
+                f"let xs ← {value(e.array)}; let vi ← {value(e.index)}; "
+                f"let idx ← Val.asScalar vi; setVal ops xs idx value)"
+            )
         raise TypeError(type(e))
+
+    def scalars(items: tuple[Expr, ...]) -> str:
+        """Emitted code for `evalScalars` on an array literal."""
+        if not items:
+            return "(.ok ([] : List α))"
+        head, rest = items[0], items[1:]
+        return (
+            f"(do let v ← {value(head)}; let x ← Val.asScalar v; "
+            f"let xs ← {scalars(rest)}; return x :: xs)"
+        )
+
+    def scalar(e: Expr) -> str:
+        """Emitted code for `evalS` on `e`: unwrap a `Val`, array is stuck."""
+        return (
+            f"((match {value(e)} with "
+            f"| .ok v => Val.asScalar v | .error f => .error f) : Eval α)"
+        )
 
     def cond(c: Cond) -> str:
         if isinstance(c, Cmp):
-            return f"(do let x ← {expr(c.lhs)}; let y ← {expr(c.rhs)}; return ops.{c.op} x y)"
+            return f"(do let x ← {scalar(c.lhs)}; let y ← {scalar(c.rhs)}; return ops.{c.op} x y)"
         if isinstance(c, And):
             return f"(do if ← {cond(c.lhs)} then {cond(c.rhs)} else return false)"
         if isinstance(c, Or):
@@ -77,9 +122,12 @@ def emit_certified(fn: Fn) -> str:
         if isinstance(s, Skip):
             body = ".fellThrough env"
         elif isinstance(s, Assign):
-            body = f"Outcome.fromEval {expr(s.expr)} (fun x => .fellThrough (env.set {s.slot} x))"
+            body = (
+                f"Outcome.fromEval {value(s.expr)} "
+                f"(fun x => .fellThrough (env.set {s.slot} x))"
+            )
         elif isinstance(s, Ret):
-            values = "[" + ", ".join(expr(e) for e in s.exprs) + "]"
+            values = "[" + ", ".join(scalar(e) for e in s.exprs) + "]"
             body = f"Outcome.fromEval ({values}.mapM id) Outcome.returned"
         elif isinstance(s, Seq):
             if not s.body:
@@ -148,11 +196,11 @@ def emit_certified(fn: Fn) -> str:
     blocks.append(
         f"/-- The compiled function preserves full outcomes, including exhaustion. -/\n"
         f"def {fn.name}Compiled (ops : Ops α) [Inhabited α] (fuel : Nat) (args : List α) :\n"
-        f"    Outcome α := {root} ops fuel (args.map some)\n\n"
+        f"    Outcome α := {root} ops fuel (args.map (fun x => some (Val.scalar x)))\n\n"
         f"theorem {fn.name}_compiled_link (ops : Ops α) [Inhabited α]\n"
         f"    (fuel : Nat) (args : List α) :\n"
         f"    {fn.name}Compiled ops fuel args = Fn.run ops {fn.name}IR fuel args := by\n"
-        f"  exact {root}_correct ops fuel (args.map some)\n\n"
+        f"  exact {root}_correct ops fuel (args.map (fun x => some (Val.scalar x)))\n\n"
         f"/-- Public exact-rational tuple interface. `none` includes fuel exhaustion. -/\n"
         f"def {fn.name} (fuel : Nat) {params} : {option_type(arity)} :=\n"
         f"  ({fn.name}Compiled Ops.rat fuel [{args_list}]).toOption.map (fun vs => {projection})\n\n"

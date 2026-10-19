@@ -40,6 +40,7 @@ EXAMPLES = [
     "free_fall_loop",
     "clamped_step",
     "early_exit",
+    "array_step",
 ]
 
 FUEL = 64

@@ -1,7 +1,9 @@
 # TODO — implementation roadmap
 
 > GitHub tracking: epic [#15](https://github.com/michaelnavazhylau/pontifex/issues/15);
-> P3 issues [#1–#6](https://github.com/michaelnavazhylau/pontifex/milestone/1);
+> P3 issues [#1–#6](https://github.com/michaelnavazhylau/pontifex/milestone/1)
+> ([#1](https://github.com/michaelnavazhylau/pontifex/issues/1) and
+> [#4](https://github.com/michaelnavazhylau/pontifex/issues/4) implemented);
 > P4 issues [#7–#14](https://github.com/michaelnavazhylau/pontifex/milestone/2);
 > tooling issue [#16](https://github.com/michaelnavazhylau/pontifex/issues/16)
 > ([milestone #3](https://github.com/michaelnavazhylau/pontifex/milestone/3)).
@@ -11,8 +13,8 @@ Ordered by value per unit of risk, derived from the current trust report
 
 **Definition of done for every item below**
 
-- `python scripts/generate.py && lake build && uv run pytest` all pass;
-- generated artifacts are fresh (`python scripts/generate.py --check`);
+- `make check` passes: generated-artifact freshness, axiom audit, rejection
+  snapshots, differential corpus, Float boundary corpus, and the pytest suite;
 - no new `sorry`, no new axioms beyond Lean's standard three, and no new
   `native_decide` outside explicitly labelled sample checks;
 - `docs/TRUST.md` (status matrix, gaps) is updated in the same change;
@@ -25,8 +27,9 @@ Sizes: **S** ≤ 1 day, **M** 2–4 days, **L** > 1 week.
 ## P0 — trust plumbing and test corpus — ✅ complete
 
 Implemented in this repository: schema/config stamping with `#guard`, build-time
-axiom auditing of every certificate, 57 committed rejection snapshots, and an
-18-program triple-differential corpus.
+axiom auditing of every certificate, 65 committed rejection snapshots, and a
+25-program triple-differential corpus (both corpora have grown since P0 closed;
+see the current counts in [README](README.md#validation)).
 
 ### ✅ T1. Stamp the artifact configuration and guard it — **S**, low risk
 
@@ -72,10 +75,10 @@ raised, not what it says.
 
 **Scope.**
 
-- `tests/rejections/<case>.py` for each unsupported construct and each subtle
+- `tests/rejections/cases/<case>.py` for each unsupported construct and each subtle
   boundary (non-ASCII names, Unicode ordering, empty return, loop variable
-  uninitialised, return in branch, annotation-only names, chained comparison,
-  …);
+  uninitialised, unreachable code after a return, mismatched return arity,
+  array aliasing/kind changes, annotation-only names, chained comparison, …);
 - expected `.error` snapshots (exception class, message, line:column);
 - a test that regenerates diagnostics and diffs them, plus a documented update
   command.
@@ -92,19 +95,19 @@ translates the top 500 crates; Aeneas has 113 programs.
 
 - a `corpus/` directory of self-contained functions inside the subset
   (integrators, root finding, recurrence/economy-style loops, branch-heavy
-  clamps, division-free numerics, nested loops);
+  clamps, division-free numerics, nested loops, and array/vector programs);
 - fixed-seed input vectors per program, run through CPython, the IR interpreter,
   and the Lean oracle (exact and binary64);
 - a per-case allowlist file for known floating-point boundary cases, printed
   explicitly at the end of the run (no silent skips);
-- `make corpus` target wired into CI.
+- `make corpus` target wired into `make check`.
 
 **Acceptance.** ≥ 15 programs; every case either matches or is listed in the
 allowlist with a reason; adding a corpus program requires no test code.
 
 ---
 
-## P1 — semantics hardening — ✅ complete (schema 2)
+## P1 — semantics hardening — ✅ complete (landed in schema 2; current schema 3)
 
 Implemented: generic fuel refinement and total→partial specs; stable failed/stuck
 outcomes; checked left-to-right division and short-circuiting; sparse uninitialized
@@ -147,7 +150,8 @@ can say “fails iff”. Doing this now prevents widening `Option` later.
 
 - extend `Outcome` with `failed : Error → Outcome α` and `stuck : Outcome α`;
 - `Error` starts with `divisionByZero` (plus `overflow` for Float power;
-  `indexOutOfBounds` and `assertionFailure` are reserved);
+  `indexOutOfBounds` was reserved here and is now used by arrays in T12;
+  `assertionFailure` remains reserved);
 - make `IR.div` checked: zero divisor produces `failed .divisionByZero` in both
   `Rat` and `Float` backends (with a documented `floatDiv` policy for NaN/∞);
 - update the Python reference interpreter, JSON codec, Lean runner, emitter
@@ -212,8 +216,9 @@ Our spec links are hand-written against generated definitions.
 
 **Scope.**
 
-- one registered lemma per IR operator and statement form (`evalE_add`,
-  `evalE_mul`, `assign_sem`, `ite_sem`, …);
+- one registered lemma per IR operator and statement form where useful (the
+  implemented tactic unfolds `evalS`/`evalV` and the array value helpers, and
+  uses named outcome lemmas such as `fromEval_ok`/`bindEnv_fellThrough`);
 - a `pontifex_step` tactic that unfolds a translated function to arithmetic and
   discharges side conditions with `assumption`/`simp`/`omega` as configured;
 - a `pontifex_step*?` script printer;
@@ -245,7 +250,7 @@ tested trust boundary. Full IEEE arithmetic proofs remain future work.
 
 ---
 
-## P3 — language growth (after P1)
+## P3 — language growth — in progress
 
 ### ✅ T11. Multi-exit returns with verified lowering — **M**, low risk (schema unchanged)
 
@@ -266,13 +271,31 @@ a corpus program, and the rejection snapshots cover the new shapes. `Seq`
 semantics and the emitted-code certificates were already correct and are
 unchanged.
 
-### T12. State vectors / arrays — **L**
+### ✅ T12. State vectors / arrays — **L**, medium risk (schema 3)
 
-Model as `List Rat` with an explicit length and bounds checks producing
-`failed .indexOutOfBounds` (Aeneas's `Slice`/`Vec` discipline). Requires T6.
+Implemented as tagged slot values: `Val α = .scalar α | .array (List α)` in the
+existing environment, so arrays flow through the same phis and loop headers as
+scalars and `Outcome`/`exec`/`Fn.run`/`exec_mono` keep their signatures. Length
+is intrinsic to the `List`. Surface syntax is one-dimensional list literals,
+`xs[i]` reads, `xs[i] = v` functional updates, and `len(xs)`. Both the read and
+the update are bounds-checked; a fractional, negative, non-finite, or
+out-of-range index is `failed .indexOutOfBounds`. The update is an `Expr.set`
+assigned to a fresh slot, which keeps the IR alias-free (no array parameters,
+array returns, nested arrays, or array copies). The frontend tracks static
+scalar/array kinds through branches and loops and rejects kind mismatches.
 
-**Acceptance.** A translated vector integrator with in-bounds accesses proved
-safe; out-of-bounds produces the defined failure outcome.
+**Acceptance.** ✅ `examples/array_step.py` (kernel-checked lowering, compiled
+link, axiom audit), three kernel-checked certificate programs (vector loop,
+array phi, bounds failure), three corpus programs (including out-of-bounds in
+both read and store positions), rejection snapshots for aliasing, nested arrays,
+kind changes, and scalar/array confusion. `exec_mono` and the refinement layer
+required no proof changes beyond the value-tag plumbing.
+
+**Deferred (not scheduled).** Array parameters and array returns need their own
+wire/CLI/corpus argument plumbing; shared-array aliasing is F7; multi-dimensional
+arrays remain out of scope. T13 calls will meet the value model as it stands:
+arrays are functional values, so passing or returning one is copy-free until
+aliasing is modelled.
 
 ### T13. Function calls — **L**
 
@@ -292,15 +315,26 @@ four-level lattice and Aeneas's `is_opaque`.
 **Acceptance.** A function calling an opaque helper still yields a certificate
 for its own body; the generated proof states the opacity precondition explicitly.
 
-### T15. Python integer semantics, `min`/`max`, conditional expressions — **M**
+### T15a. `min`, `max`, and conditional expressions — **M**
 
-Python `int` is unbounded; the current IR only has exact rationals. Decide
+Add `min(a, b)`, `max(a, b)`, and `a if c else b` with defined, tested numeric
+semantics on the existing scalar types. Desugar to `Ite`/comparisons so the
+lowering certificate stays `rfl`-checked.
+
+**Acceptance.** The three forms translate through the same path as an explicit
+`if`, appear in the corpus in exact and Float modes, and have rejection cases
+for unsupported arities or array operands.
+
+### T15b. Python integer and numeric-tower semantics — **M**, design spike
+
+Python `int` is unbounded; the current IR has one scalar type per backend. Decide
 whether to (a) model `int` as `ℤ` with explicit coercion points, or (b) keep
-rejecting mixed int/float code. Add `min`/`max` and `a if c else b` only with
-defined, tested numeric semantics.
+rejecting mixed int/float code and document the boundary. This choice also fixes
+whether array indices remain scalars or become a separate integer sort.
 
 **Acceptance.** A documented numeric tower with tests; no expression silently
-changes meaning between exact and float modes.
+changes meaning between exact and float modes; array-index conversion is either
+subsumed by the tower or explicitly documented as the remaining exception.
 
 ---
 
@@ -313,8 +347,10 @@ changes meaning between exact and float modes.
   `partial_fixpoint`-style definitions) for selected functions.
 - **Broad Python exception model**: `KeyError`, `TypeError`, `OverflowError`,
   and user `raise`, with an effect/outcome discipline.
-- **Aliasing/state**: references or arrays shared across functions; today the
-  IR is strictly scalar and functional.
+- **Aliasing and shared state (F7)**: references or arrays shared across
+  functions. Today the IR is strictly functional: slots hold scalars or
+  one-dimensional arrays, and an update produces a fresh value, so there is no
+  observable sharing to reason about.
 
 ---
 
@@ -323,11 +359,17 @@ changes meaning between exact and float modes.
 1. ✅ **T1–T4** complete.
 2. ✅ **T5–T7** complete. Computed-NaN exemptions are explicit and counted;
    native arithmetic proofs and a full Python numeric tower remain open.
-4. ✅ **T8–T10** complete: certified normalization, the step tactic, and
+3. ✅ **T8–T10** complete: certified normalization, the step tactic, and
    two-tier Float specs. Native IEEE proofs and rational-coefficient
    normalization remain open.
-5. ✅ **T11** complete. Grow the language only after the outcome model and
-   corpus are stable: **T12 → T13 → T14 → T15**.
+4. ✅ **T11–T12** complete: early returns and one-dimensional arrays with bounds
+   failures.
+5. **Next:** **T13** (function calls). **T15a** (`min`/`max`/conditional
+   expressions) is the cheap parallel win, and **T14** (opacity) can follow
+   calls. **T15b** should be a design spike before any further numeric growth.
+6. **Tooling, independent of P3:** [#16](https://github.com/michaelnavazhylau/pontifex/issues/16)
+   `pontifex check` capability preflight. It makes the subset boundary explicit
+   and is a natural home for reporting T12's array restrictions.
 
 ## Explicit non-goals (for now)
 

@@ -54,13 +54,16 @@ from typing import Iterable, Sequence
 from .errors import FrontendError, UnsupportedError
 from .ir import (
     And,
+    ArrayLit,
     Assign,
     Bin,
     Cmp,
     Cond,
     Expr,
     Fn,
+    Index,
     Ite,
+    Len,
     Lit,
     Not,
     Or,
@@ -68,6 +71,7 @@ from .ir import (
     Pow,
     Ret,
     Seq,
+    Set,
     Skip,
     Slot,
     Stmt,
@@ -101,6 +105,12 @@ CMP_NAMES = {
 }
 
 MAX_POW_EXPONENT = 8
+
+#: Static kinds of source variables.  Arrays are one-dimensional, immutable
+#: values; ``xs[i] = v`` rebinds ``xs`` to a new array value (SSA), so there is
+#: no aliasing.  Array parameters and array returns are not in the subset.
+SCALAR = "scalar"
+ARRAY = "array"
 
 
 @dataclass
@@ -145,11 +155,14 @@ def assigned_names(nodes: Iterable[ast.stmt]) -> set[str]:
     for node in nodes:
         if isinstance(node, ast.Assign):
             for target in node.targets:
-                if not isinstance(target, ast.Name):
+                if isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name):
+                    out.add(target.value.id)
+                elif not isinstance(target, ast.Name):
                     raise UnsupportedError(
                         "only simple assignments to a single name are supported", node
                     )
-                out.add(target.id)
+                else:
+                    out.add(target.id)
         elif isinstance(node, ast.AnnAssign):
             if not isinstance(node.target, ast.Name) or node.value is None:
                 raise UnsupportedError("only annotated assignments with a value are supported", node)
@@ -188,6 +201,8 @@ class _Lowerer:
         self._next_slot = len(params)
         #: Arity fixed by the first return; every later return must agree.
         self.result_arity: int | None = None
+        #: Static kind (scalar/array) of each bound name, threaded like `env`.
+        self.kinds: dict[str, str] = {name: SCALAR for name in params}
 
     # -- slots -------------------------------------------------------------
 
@@ -217,6 +232,12 @@ class _Lowerer:
 
     def expr(self, node: ast.expr) -> Expr:
         if isinstance(node, ast.Name):
+            if self.kinds.get(node.id) == ARRAY:
+                raise self.err(
+                    node,
+                    f"'{node.id}' is an array and cannot be used where a scalar is expected "
+                    "(index it, take its length, or return a scalar)",
+                )
             return Slot(self.lookup(node))
         if isinstance(node, ast.Constant):
             value = node.value
@@ -254,10 +275,17 @@ class _Lowerer:
                 and not node.keywords
             ):
                 return Un("abs", self.expr(node.args[0]))
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id == "len"
+                and len(node.args) == 1
+                and not node.keywords
+            ):
+                return Len(self.array_expr(node.args[0]))
             raise self.err(
                 node,
-                "only the call abs(x) is supported; imports, math functions, min/max and "
-                "user calls are rejected by the v0 frontend",
+                "only the calls abs(x) and len(xs) are supported; imports, math functions, "
+                "min/max and user calls are rejected by the v0 frontend",
             )
         if isinstance(node, ast.Attribute):
             raise self.err(
@@ -266,10 +294,16 @@ class _Lowerer:
                 "(no modules, objects or methods in the verified subset)",
             )
         if isinstance(node, ast.Subscript):
+            if isinstance(node.slice, ast.Slice):
+                raise self.err(node, "slices are not supported")
+            return Index(self.array_expr(node.value), self.expr(node.slice))
+        if isinstance(node, ast.List):
             raise self.err(
-                node, "subscripting is not supported (no arrays/sequences in the verified subset)"
+                node,
+                "a list literal is an array and cannot be used where a scalar is expected "
+                "(assign it to a name, index it, or take len(...))",
             )
-        if isinstance(node, (ast.List, ast.Tuple, ast.Set, ast.Dict)):
+        if isinstance(node, (ast.Tuple, ast.Set, ast.Dict)):
             raise self.err(
                 node,
                 f"{type(node).__name__.lower()} literals are not supported in expressions "
@@ -328,6 +362,45 @@ class _Lowerer:
             "(use comparisons combined with and/or/not)"
         )
 
+    # -- arrays ------------------------------------------------------------
+
+    def kind(self, node: ast.expr) -> str:
+        """Static kind of an assignment value (without lowering it)."""
+        if isinstance(node, ast.List):
+            return ARRAY
+        if isinstance(node, ast.Name) and self.kinds.get(node.id) == ARRAY:
+            return ARRAY
+        return SCALAR
+
+    def array_literal(self, node: ast.List) -> Expr:
+        items: list[Expr] = []
+        for element in node.elts:
+            if isinstance(element, (ast.List, ast.Tuple, ast.Set, ast.Dict)):
+                raise self.err(
+                    element,
+                    "nested arrays are not supported "
+                    "(the verified subset has one array dimension)",
+                )
+            items.append(self.expr(element))
+        return ArrayLit(tuple(items))
+
+    def array_expr(self, node: ast.expr) -> Expr:
+        """Lower an expression that must be an array (literal or variable)."""
+        if isinstance(node, ast.List):
+            return self.array_literal(node)
+        if isinstance(node, ast.Name):
+            slot = self.lookup(node)
+            if self.kinds.get(node.id) != ARRAY:
+                raise self.err(
+                    node,
+                    f"'{node.id}' is a scalar, not an array; only arrays can be indexed "
+                    "or measured",
+                )
+            return Slot(slot)
+        raise self.err(
+            node, "only a list literal or an array variable can be indexed or measured"
+        )
+
     # -- statements --------------------------------------------------------
 
     def block(self, nodes: Sequence[ast.stmt]) -> Stmt:
@@ -363,6 +436,39 @@ class _Lowerer:
             )
         return exprs
 
+    def bind(self, name: str, value_node: ast.expr) -> Stmt:
+        kind = self.kind(value_node)
+        if kind == ARRAY:
+            if not isinstance(value_node, ast.List):
+                raise self.err(
+                    value_node,
+                    f"array assignment copies are not supported (no aliasing): "
+                    f"assign a fresh list literal to '{name}' instead",
+                )
+            value = self.array_literal(value_node)
+        else:
+            value = self.expr(value_node)
+        slot = self.fresh(name)
+        self.env[name] = slot
+        self.kinds[name] = kind
+        return Assign(slot, value)
+
+    def subscript_store(self, target: ast.Subscript, value_node: ast.expr) -> Stmt:
+        if not isinstance(target.value, ast.Name):
+            raise self.err(
+                target, "only subscript assignment to a named array is supported"
+            )
+        if isinstance(target.slice, ast.Slice):
+            raise self.err(target, "slice assignment is not supported")
+        name = target.value.id
+        array = self.array_expr(target.value)
+        index = self.expr(target.slice)
+        stored = self.expr(value_node)
+        slot = self.fresh(name)
+        self.env[name] = slot
+        self.kinds[name] = ARRAY
+        return Assign(slot, Set(array, index, stored))
+
     def stmt(self, node: ast.stmt) -> Stmt:
         if isinstance(node, ast.Pass):
             return Skip()
@@ -378,24 +484,26 @@ class _Lowerer:
             if len(node.targets) != 1:
                 raise self.err(node, "chained assignment (a = b = c) is not supported")
             target = node.targets[0]
+            if isinstance(target, ast.Subscript):
+                return self.subscript_store(target, node.value)
             if not isinstance(target, ast.Name):
                 raise self.err(
                     node,
-                    "only assignment to a plain name is supported "
-                    "(no attributes, indexing, tuple unpacking or slicing)",
+                    "only assignment to a plain name or xs[i] is supported "
+                    "(no attributes, tuple unpacking or slicing)",
                 )
-            value = self.expr(node.value)
-            slot = self.fresh(target.id)
-            self.env[target.id] = slot
-            return Assign(slot, value)
+            return self.bind(target.id, node.value)
         if isinstance(node, ast.AnnAssign):
             if not isinstance(node.target, ast.Name) or node.value is None:
                 raise self.err(node, "only 'name: type = value' is supported")
-            value = self.expr(node.value)
-            slot = self.fresh(node.target.id)
-            self.env[node.target.id] = slot
-            return Assign(slot, value)
+            return self.bind(node.target.id, node.value)
         if isinstance(node, ast.AugAssign):
+            if isinstance(node.target, ast.Subscript):
+                raise self.err(
+                    node,
+                    "augmented subscript assignment (xs[i] += v) is not supported; "
+                    "write xs[i] = xs[i] + v",
+                )
             if not isinstance(node.target, ast.Name):
                 raise self.err(node, "only augmented assignment to a name is supported")
             op = AUGOP_NAMES.get(type(node.op))
@@ -416,17 +524,22 @@ class _Lowerer:
 
     def if_(self, node: ast.If) -> Stmt:
         pre = dict(self.env)
+        pre_kinds = dict(self.kinds)
         cond = self.cond(node.test)
         then_returns = block_returns(node.body)
         else_returns = block_returns(node.orelse)
 
         self.env = dict(pre)
+        self.kinds = dict(pre_kinds)
         then_stmt = self.block(node.body)
         then_env = dict(self.env)
+        then_kinds = dict(self.kinds)
 
         self.env = dict(pre)
+        self.kinds = dict(pre_kinds)
         else_stmt = self.block(node.orelse) if node.orelse else Skip()
         else_env = dict(self.env)
+        else_kinds = dict(self.kinds)
 
         # Merge only variables whose binding differs between the paths that can
         # still fall through.  A definitely-returning branch never reaches the
@@ -453,6 +566,7 @@ class _Lowerer:
 
         phis: list[Phi] = []
         self.env = dict(pre)
+        self.kinds = dict(pre_kinds)
         for name in sorted(merged):
             then_slot = then_env.get(name, pre.get(name))
             else_slot = else_env.get(name, pre.get(name))
@@ -462,15 +576,34 @@ class _Lowerer:
                 else_slot = then_slot
             if then_slot is None or else_slot is None:  # pragma: no cover - invariant
                 raise self.err(node, f"internal error: no value for '{name}' after if")
+            if then_returns and not else_returns:
+                merged_kind = else_kinds.get(name, pre_kinds.get(name))
+            elif else_returns and not then_returns:
+                merged_kind = then_kinds.get(name, pre_kinds.get(name))
+            elif then_returns and else_returns:  # pragma: no cover - unreachable code
+                merged_kind = pre_kinds.get(name)
+            else:
+                then_kind, else_kind = then_kinds.get(name), else_kinds.get(name)
+                if then_kind != else_kind:
+                    raise self.err(
+                        node,
+                        f"variable '{name}' changes between scalar and array in the "
+                        "branches of the if",
+                    )
+                merged_kind = then_kind
+            if merged_kind is None:  # pragma: no cover - invariant
+                raise self.err(node, f"internal error: no kind for '{name}' after if")
             slot = self.fresh(name)
             phis.append(Phi(slot, then_slot, else_slot))
             self.env[name] = slot
+            self.kinds[name] = merged_kind
         return Ite(cond, then_stmt, else_stmt, tuple(phis))
 
     def while_(self, node: ast.While) -> Stmt:
         if node.orelse:
             raise self.err(node, "while/else is not supported")
         pre = dict(self.env)
+        pre_kinds = dict(self.kinds)
         assigned = sorted(assigned_names(node.body))
         # Only variables that already have a value can be loop-carried.  A
         # variable first assigned inside the body is checked after lowering:
@@ -480,10 +613,12 @@ class _Lowerer:
         introduced = [name for name in assigned if name not in pre]
         headers = {name: self.fresh(f"{name}#loop") for name in carried}
         self.env = dict(pre)
+        self.kinds = dict(pre_kinds)
         self.env.update(headers)
         cond = self.cond(node.test)
         body = self.block(node.body)
         body_env = dict(self.env)
+        body_kinds = dict(self.kinds)
         for name in introduced:
             if name in body_env:
                 raise self.err(
@@ -491,11 +626,18 @@ class _Lowerer:
                     f"variable '{name}' is assigned inside the loop but has no value before it; "
                     "initialise it before the loop so the loop-carried slot is well-defined",
                 )
+        for name in carried:
+            if body_kinds.get(name) != pre_kinds[name]:
+                raise self.err(
+                    node,
+                    f"variable '{name}' changes between scalar and array inside the loop",
+                )
         phis = tuple(Phi(headers[name], body_env[name], pre[name]) for name in carried)
         # Initialise the header slots explicitly, in source order of the loop
         # variables; `While` itself only performs the back-edge updates.
         init = tuple(Assign(headers[name], Slot(pre[name])) for name in carried)
         self.env = dict(pre)
+        self.kinds = dict(pre_kinds)
         self.env.update(headers)
         return Seq(init + (While(cond, phis, body),))
 

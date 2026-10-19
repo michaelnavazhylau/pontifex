@@ -94,6 +94,21 @@ partial def decodeExpr (j : Json) : Except String Expr := do
       let ej ← j.getObjVal? "e"
       let e ← decodeExpr ej
       return .un op e
+  | "index" =>
+      let aj ← j.getObjVal? "a"
+      let ij ← j.getObjVal? "i"
+      return .index (← decodeExpr aj) (← decodeExpr ij)
+  | "len" =>
+      let aj ← j.getObjVal? "a"
+      return .len (← decodeExpr aj)
+  | "arrayLit" =>
+      let arr ← getArr j "es"
+      return .arrayLit (← arr.toList.mapM decodeExpr)
+  | "set" =>
+      let aj ← j.getObjVal? "a"
+      let ij ← j.getObjVal? "i"
+      let vj ← j.getObjVal? "v"
+      return .set (← decodeExpr aj) (← decodeExpr ij) (← decodeExpr vj)
   | other => throw s!"unknown expression kind '{other}'"
 
 partial def decodeCond (j : Json) : Except String Cond := do
@@ -208,7 +223,8 @@ def encodeOutcome (enc : α → Json) : Outcome α → Json
   | .fellThrough env => Json.mkObj [("kind", Json.str "fellThrough"),
       ("slots", Json.arr (env.toArray.map fun slot => match slot with
         | none => Json.null
-        | some x => enc x))]
+        | some (.scalar x) => enc x
+        | some (.array xs) => Json.arr (xs.toArray.map enc)))]
   | .outOfFuel => Json.mkObj [("kind", Json.str "outOfFuel")]
   | .stuck => Json.mkObj [("kind", Json.str "stuck")]
   | .failed e => Json.mkObj [("kind", Json.str "failed"), ("error", Json.str (match e with

@@ -1,2 +1,2 @@
 UnsupportedError
-tests/rejections/cases/list_literal.py:2:12: list literals are not supported in expressions (return a flat tuple of scalars instead)
+tests/rejections/cases/list_literal.py:2:12: a list literal is an array and cannot be used where a scalar is expected (assign it to a name, index it, or take len(...))

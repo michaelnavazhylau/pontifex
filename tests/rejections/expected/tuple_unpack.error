@@ -1,2 +1,2 @@
 UnsupportedError
-tests/rejections/cases/tuple_unpack.py:2:5: only assignment to a plain name is supported (no attributes, indexing, tuple unpacking or slicing)
+tests/rejections/cases/tuple_unpack.py:2:5: only assignment to a plain name or xs[i] is supported (no attributes, tuple unpacking or slicing)
