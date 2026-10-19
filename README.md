@@ -99,6 +99,7 @@ python/pyverif/
   ...                   frontend, SSA lowering, emitter, interpreter, CLI
 examples/               Python programs that are translated
 python/tests/           unit, rejection, differential (incl. Lean oracle) tests
+TODO.md                 ordered implementation roadmap with acceptance criteria
 docs/TRUST.md           trust model, status matrix, open obligations
 docs/RELATED_WORK.md    review of Charon/Aeneas and ranked lessons for us
 docs/related-work/      full reading reports for both upstream repositories
@@ -146,11 +147,15 @@ Completed: all-fuel code↔IR certificates for nested `if`/`while`, a verified
 SSA lowering with per-program `rfl` certificates, backend-parametric
 full-outcome preservation, and corruption-rejection tests.
 
-Next:
+The ordered, acceptance-criteria-backed plan lives in `TODO.md`. In short:
 
-1. Extend the certified surface: prove the desugaring (aug-assign, `**`, `abs`,
-   docstrings) and move AST transcription out of the trusted base.
-2. A verified reflective polynomial normaliser for `Rat` (better algebra
-   automation without external dependencies).
-3. IEEE-754 refinements: literal conversion, exceptions, signed zero, power.
-4. State vectors / arrays, function calls, and multiple exits.
+1. **P0 (now):** artifact config stamping + guards, an axiom/`sorry` build gate,
+   a rejection corpus with committed diagnostics, and a differential corpus.
+2. **P1:** an outcome lattice with a fuel-refinement theorem, explicit
+   exceptional/stuck outcomes (division by zero first), and closing the Float
+   boundary model.
+3. **P2:** a verified reflective `Rat` normaliser (closes the modified-energy
+   and n-step theorems), a spec database with `pyverif_step`, and Float
+   value/bit-level lemmas.
+4. **P3:** multi-exit returns, state vectors, function calls, an opacity
+   lattice, and Python integer semantics.
