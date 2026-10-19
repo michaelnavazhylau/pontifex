@@ -4,11 +4,14 @@ import PyVerif.Core.Binary64
 import PyVerif.Core.Ops
 import PyVerif.Core.Semantics
 import PyVerif.Core.Refinement
+import PyVerif.Core.Poly
+import PyVerif.Core.PolyTactic
 import PyVerif.Core.Source
 import PyVerif.Core.Lower
 import PyVerif.Json
 import PyVerif.Tactic
 import PyVerif.Spec.Mechanics
+import PyVerif.Spec.FreeFall
 import PyVerif.Generated
 import PyVerif.Examples.SpecLinks
 import PyVerif.Examples.ControlFlow

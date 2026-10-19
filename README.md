@@ -55,7 +55,8 @@ by the differential tests.
 | Rational division succeeds iff divisor is nonzero | **proved**, `rat_div_success_iff` |
 | Control-flow compiled code (`if`/`while`) = IR semantics | **proved** for every fuel, input, and `Ops α` backend; full outcomes preserved |
 | Clamped integrator = independent piecewise spec | `PyVerif/Examples/ControlFlow.lean`, kernel-checked |
-| General modified-energy invariant | **open**; current core-only algebra helper is limited, and only a finite grid is checked |
+| General modified-energy invariant | **proved**, `symplecticStep_modifiedEnergy` via `rat_ring` |
+| Multi-step free-fall position formula | **proved**, `repeatStep_position_twice` |
 | Artifact config/schema stamped | `#guard` in every generated module; `generate.py` cross-checks Lean and Python versions |
 | Certificate axiom hygiene | `#audit_axioms` over every lowering/linkage theorem at build time |
 
@@ -98,13 +99,16 @@ PyVerif/
   Core/Source.lean      core source syntax (pre-SSA), ids instead of names
   Core/Lower.lean       reference SSA lowering; per-program agreement checked by `rfl`
   Core/Refinement.lean  fuel monotonicity and total/partial specs
+  Core/Poly.lean        certified integer-coefficient polynomial normalizer
+  Core/PolyTactic.lean  `rat_ring` reification and proof construction
   Core/Binary64.lean    raw-bit Float boundaries, including NaN payloads
   Core/Error.lean       checked arithmetic failures and stuck states
   Core/Ops.lean         Rat and Float numeric backends
   Core/Semantics.lean   Env, evalE/evalC, exec (fuel), Fn.run
   Json.lean             JSON decoder/encoder for the IR (Lean side)
   Tactic.lean           missing Rat AC instances + `rat_simp`
-  Spec/Mechanics.lean   independent physics specification and proven lemmas
+  Spec/Mechanics.lean   independent physics specification; invariant is proved
+  Spec/FreeFall.lean    n-step velocity/position closed forms via `rat_ring`
   Generated/*.lean      checked-in translations of examples/ (regenerated)
   Examples/SpecLinks.lean   straight-line code/IR links to physics specs
   Examples/ControlFlow.lean clamped-step spec and Float certificate examples
@@ -165,11 +169,15 @@ Completed: all-fuel code↔IR certificates for control flow and fallible arithme
 per-program agreement with the reference SSA lowering, fuel refinement,
 total/partial specs, explicit failures/stuck, and bit-exact Float boundaries.
 Native arithmetic agreement is tested—not a proof of Python/runtime correctness.
+The core-only `rat_ring` normalizer proves the general harmonic invariant and the
+multi-step free-fall formula; it handles integer coefficients (clear rational
+literal coefficients first).
 
 P0 and P1 are complete; see `TODO.md`. P1 uses a flat information order with
 bottom, not a lattice: failures and stuck states are stable observations.
 
 Next:
-1. **P2:** reflective rational normalization, a spec database/tactic, and
-   native Float arithmetic proofs.
+1. **P2 (in progress):** a spec database/`pyverif_step` tactic and native Float
+   arithmetic proofs. The certified integer-coefficient normalizer (`rat_ring`)
+   is complete.
 2. **P3:** multi-exit returns, arrays, function calls, and Python integer semantics.

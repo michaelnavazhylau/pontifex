@@ -177,7 +177,7 @@ explicit allowlist for unsupported operations.
 
 ## P2 — proof power and usability
 
-### T8. Verified reflective `Rat` normaliser (`rat_ring`) — **L**, medium/high risk
+### ✅ T8. Verified reflective `Rat` normaliser (`rat_ring`) — **L**, medium/high risk
 
 **Why.** Core Lean has no `ring`; `rat_simp` cannot combine coefficients or
 cancel opposing terms. This blocks the general modified-energy invariant and the
@@ -194,9 +194,10 @@ n-step free-fall closed form — the two most interesting domain theorems left.
   reduction;
 - register as `rat_ring`; keep `rat_simp` as the cheap fallback.
 
-**Acceptance.** `symplecticStep` preserves `modifiedEnergy` for all rationals,
-and the n-step free-fall position formula is proved; both with no new axioms.
-Corruption tests confirm the normaliser rejects false identities.
+**Acceptance.** ✅ `symplecticStep` preserves `modifiedEnergy` for all rationals,
+and `repeatStep_position_twice` is proved; both with no new axioms and covered by
+the build-time audit. Corruption tests reject false identities and rational
+literal coefficients (clear denominators first).
 
 ### T9. Spec database and `pyverif_step` tactic — **M**, low risk
 

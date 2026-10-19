@@ -11,8 +11,15 @@
   associativity/commutativity of *addition*.  Declaring the missing instances
   (below) restores AC reasoning for products too.
 
-  `rat_simp` eliminates subtraction, distributes products over sums and then
-  closes with `ac_rfl`.  It handles polynomial identities whose two sides have
+  `PyVerif.Core.Poly` provides `rat_ring`, a certified normalizer that
+  reifies both sides into integer-coefficient polynomials, normalizes with
+  kernel-reducible `Int`/list operations, and proves equality when the normal
+  forms coincide. It handles coefficient arithmetic and cancellation (for
+  example the symplectic modified-energy identity). Rational literal
+  coefficients are rejected; clear denominators first.
+
+  `rat_simp` is the older, cheaper fallback: it eliminates subtraction,
+  distributes products over sums and then closes with `ac_rfl`.  It handles polynomial identities whose two sides have
   the same multiset of monomials with the same coefficients (typically after
   distribution).  It is *not* a ring tactic: any identity that requires
   *combining coefficients* (such as `2 * (1/2) = 1`, or

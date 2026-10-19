@@ -26,6 +26,7 @@
 import Std
 import PyVerif.Core.Semantics
 import PyVerif.Tactic
+import PyVerif.Core.PolyTactic
 
 namespace PyVerif.Spec
 
@@ -85,7 +86,16 @@ theorem symplecticStep_expanded (omega2 dt x v : Rat) :
 def modifiedEnergy (omega2 dt : Rat) (s : State) : Rat :=
   s.v * s.v + omega2 * s.x * s.x - omega2 * dt * s.x * s.v
 
-/-- Sample check of the modified-energy invariant.
+/-- The symplectic Euler step exactly preserves the modified energy.
+    This is the general polynomial identity; `rat_ring` normalizes both sides
+    over `Int` coefficients and the kernel checks the result. -/
+theorem symplecticStep_modifiedEnergy (omega2 dt x v : Rat) :
+    modifiedEnergy omega2 dt (symplecticStep omega2 dt ⟨x, v⟩) =
+      modifiedEnergy omega2 dt ⟨x, v⟩ := by
+  simp only [modifiedEnergy, symplecticStep]
+  rat_ring
+
+/-- The previous finite-grid check, kept as a build-time regression test.
 
     This is *only* a finite check (9 × 9 × 5 rational states) performed by
     compiled evaluation; it is not a proof of the invariant.  The general

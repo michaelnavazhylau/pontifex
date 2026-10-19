@@ -101,6 +101,15 @@ AUDIT_EXAMPLES = [
     "PyVerif.Examples.freeFallLoop_compiled_mono",
     "PyVerif.Examples.freeFallLoop_zero_time_total",
     "PyVerif.Examples.freeFallLoop_zero_time_partial",
+    "PyVerif.Spec.symplecticStep_modifiedEnergy",
+    "PyVerif.Spec.repeatStep_velocity",
+    "PyVerif.Spec.repeatStep_position_twice",
+    "PyVerif.Spec.ratNatCast_add",
+    "PyVerif.Spec.ratNatCast_mul",
+    "PyVerif.Spec.ratNatCast_succ",
+    "PyVerif.Poly.eval_normalize",
+    "PyVerif.Poly.eval_insertTerm",
+    "PyVerif.Poly.eval_foldr_mul",
 ]
 
 

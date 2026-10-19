@@ -135,7 +135,8 @@ those are finite build-time tests, not universal correctness certificates.
 | Native Float/CPython arithmetic agreement | Tested at IEEE edges and random bits, not proved |
 | Python source↔IR equivalence | Tested only; still unproved |
 | Physics step/spec links and clamping spec | Proved for the modeled algorithms |
-| General harmonic modified-energy invariant | Open; finite grid only |
+| General harmonic modified-energy invariant | **Proved**, `symplecticStep_modifiedEnergy` |
+| Multi-step free-fall position closed form | **Proved**, `repeatStep_position_twice` |
 | General positive-duration loop termination | Open |
 
 ## Remaining boundaries
@@ -145,8 +146,11 @@ those are finite build-time tests, not universal correctness certificates.
 * Codegen certificates are per-program checks, not a universal compiler theorem.
 * Native machine-code semantics and Float arithmetic implementations remain
   trusted/tested boundaries. IEEE arithmetic proofs are P2 work.
-* `rat_simp` is limited algebra automation, not a ring normalizer. Core Lean can
-  prove coefficient identities using explicit lemmas; the current helper cannot.
+* `rat_ring` is a certified integer-coefficient normalizer, not a general ring
+  tactic: rational literal coefficients must be cleared, and non-polynomial
+  functions (`abs`, division by variables) are treated as atoms. It proves the
+  symplectic invariant and the multi-step free-fall formula. Broader algebra
+  automation (rational coefficients, ordered/nonlinear reasoning) remains open.
 * Arrays, function calls, early returns, a general exception hierarchy, and a
   Python numeric tower remain unsupported features, not silent assumptions.
 

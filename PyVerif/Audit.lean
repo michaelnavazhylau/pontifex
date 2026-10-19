@@ -34,3 +34,12 @@ import PyVerif.Audit.Command
 #audit_axioms PyVerif.Examples.freeFallLoop_compiled_mono
 #audit_axioms PyVerif.Examples.freeFallLoop_zero_time_total
 #audit_axioms PyVerif.Examples.freeFallLoop_zero_time_partial
+#audit_axioms PyVerif.Spec.symplecticStep_modifiedEnergy
+#audit_axioms PyVerif.Spec.repeatStep_velocity
+#audit_axioms PyVerif.Spec.repeatStep_position_twice
+#audit_axioms PyVerif.Spec.ratNatCast_add
+#audit_axioms PyVerif.Spec.ratNatCast_mul
+#audit_axioms PyVerif.Spec.ratNatCast_succ
+#audit_axioms PyVerif.Poly.eval_normalize
+#audit_axioms PyVerif.Poly.eval_insertTerm
+#audit_axioms PyVerif.Poly.eval_foldr_mul
