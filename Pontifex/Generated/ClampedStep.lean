@@ -49,6 +49,13 @@ theorem step_lowering :
     Source.lowerBody stepSource = .ok stepIR.body :=
   rfl
 
+/-- Own lowering and the recursively composed lowering evidence of every callee. -/
+def step_program_lowering_spec : Prop :=
+    Source.lowerBody stepSource = .ok stepIR.body
+
+theorem step_program_lowering : step_program_lowering_spec :=
+  step_lowering
+
 /-- Specialized executable block (no IR interpreter calls). -/
 def step_block1 (ops : Ops α) [Inhabited α] : Nat → Env α → Outcome α
   | 0, _ => .outOfFuel

@@ -12,6 +12,7 @@ message.  A case that stops being rejected is an error, not a silent update.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -23,12 +24,13 @@ from pontifex.frontend import translate  # noqa: E402
 
 CASES = ROOT / "tests" / "rejections" / "cases"
 EXPECTED = ROOT / "tests" / "rejections" / "expected"
+FUNCTIONS = json.loads((CASES.parent / "functions.json").read_text())
 
 
 def diagnose(path: Path) -> str:
     relative = path.relative_to(ROOT).as_posix()
     try:
-        translate(path.read_text(), filename=relative)
+        translate(path.read_text(), filename=relative, function=FUNCTIONS.get(path.name))
     except FrontendError as exc:
         return f"{type(exc).__name__}\n{exc}\n"
     except Exception as exc:  # noqa: BLE001 - report, do not hide
@@ -42,6 +44,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     EXPECTED.mkdir(parents=True, exist_ok=True)
+    unknown = set(FUNCTIONS) - {path.name for path in CASES.glob("*.py")}
+    if unknown:
+        raise SystemExit(f"unknown rejection cases in functions.json: {sorted(unknown)}")
     stale: list[str] = []
     for case in sorted(CASES.glob("*.py")):
         snapshot = EXPECTED / f"{case.stem}.error"

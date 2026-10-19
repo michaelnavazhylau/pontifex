@@ -20,6 +20,11 @@ Python file -- trusted parsing/transcription --> core Source AST
   The lowering is a formal executable specification, not a verified compiler
   for all Python programs. Transcription/desugaring and fidelity of that
   reference lowering remain trust boundaries.
+* `<fn>_program_lowering` composes that fact with the program lowering
+  certificates of every white-box callee recursively. For call-containing
+  programs, this is the complete lowering evidence: the caller's `_lowering`
+  alone checks expansion of the referenced callee IR, not its source agreement.
+  Inlining fidelity remains tested, not proved; see [CALLS.md](CALLS.md).
 * `<fn>_compiled_link` checks code↔IR behavioral equivalence for every fuel,
   environment, and `Ops α`. Generated blocks do not call `exec`, `evalV`,
   `evalS`, or `evalC`; they independently emit operations, control flow, and
@@ -41,10 +46,10 @@ Python file -- trusted parsing/transcription --> core Source AST
 returned values | fellThrough env | failed Error | stuck | outOfFuel
 ```
 
-`Error` currently includes `divisionByZero` and `overflow` (Float power).
-`indexOutOfBounds`/`assertionFailure` are reserved constructors, not implemented
-language features. Undefined slots/phi predecessors yield `stuck`. Environments
-contain `Option α` cells: gaps are uninitialized, never manufactured zeros.
+`Error` currently includes `divisionByZero`, `overflow` (Float power), and
+`indexOutOfBounds` (array access/update). `assertionFailure` remains reserved.
+Undefined slots/phi predecessors yield `stuck`. Environments contain
+`Option (Val α)` cells: gaps are uninitialized, never manufactured zeros.
 
 `Outcome.Refines a b := a = outOfFuel ∨ a = b` is a **flat partial order with
 bottom**, not a lattice. Distinct results have no common upper bound. Failures
@@ -124,6 +129,25 @@ The surface subset is one-dimensional list literals, `xs[i]`, `xs[i] = v`, and
   non-negative integral values up to `2^53` via native `Float.floor`/
   `Float.toUInt64`; that conversion is **tested**, not proved, and every
   rejection is the same defined bounds failure.
+
+## White-box calls
+
+The first T13 slice inlines module-local, straight-line single-scalar helpers
+at complete assignment/return sites, with positional scalar arguments. It
+preserves eager left-to-right evaluation in a private fresh-slot frame; unused
+arguments and potentially failing dead callee assignments are retained. Caller
+branches, loops, early returns, and arrays still use their existing paths.
+Forward definitions and acyclic helper chains are supported, but recursive,
+nested-expression, summary/opaque, array, tuple-result, and control-flow-callee
+calls are deferred. See [CALLS.md](CALLS.md) for the precise subset.
+
+Core Source `inlineCall` references independently emitted callee IR. Lean's
+`Inline.expand` checks the expansion via the caller's `rfl` lowering fact;
+`<fn>_program_lowering` additionally requires the callee's program certificate.
+Existing code linkage then checks the expanded IR, without new runtime nodes
+or a schema change. Axiom audits include every nested helper's certificates.
+This is an executable reference algorithm with per-program agreement checks,
+not a universal semantic-preservation theorem for inlining.
 
 ## Numeric readings and transport
 
@@ -216,8 +240,10 @@ those are finite build-time tests, not universal correctness certificates.
   functions (`abs`, division by variables) are treated as atoms. It proves the
   symplectic invariant and the multi-step free-fall formula. Broader algebra
   automation (rational coefficients, ordered/nonlinear reasoning) remains open.
-* Arrays, function calls, early returns, a general exception hierarchy, and a
-  Python numeric tower remain unsupported features, not silent assumptions.
+* General calls (beyond bounded white-box scalar helpers), array parameters/
+  returns and sharing, a general exception hierarchy, and a Python numeric
+  tower remain unsupported features, not silent assumptions. Local arrays and
+  early returns are implemented.
 
 ## Reproduce
 

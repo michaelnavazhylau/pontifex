@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/user_call_unpack.py:6:12: inlined calls require positional arguments (no keywords or unpacking)

@@ -1,7 +1,7 @@
 # Differential corpus
 
-Each program is a self-contained function in the verified Python subset. The
-runner compiles it once and compares, on deterministic sampled inputs:
+Each program is a self-contained module with a selected entry point in the
+verified Python subset (and optionally bounded scalar helpers). The runner compiles it once and compares, on deterministic sampled inputs:
 
 1. CPython execution of the source,
 2. the exact / binary64 reference interpreters over the emitted IR, and
@@ -16,8 +16,10 @@ python scripts/run_corpus.py --samples 8 --verbose
 
 ## Adding a program
 
-Create `programs/<name>.py` with exactly one function, then add an entry to
-`manifest.json`. No test code is required: the pytest suite iterates the
+Create `programs/<name>.py` with an entry-point function, then add an entry to
+`manifest.json` naming that function. Bounded white-box scalar helpers may share
+the module (`call_step.py`, `call_loop.py`, `call_failure.py`); see
+[`docs/CALLS.md`](../docs/CALLS.md). No test code is required: the pytest suite iterates the
 manifest.
 
 ```json

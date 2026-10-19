@@ -53,6 +53,11 @@ inductive Cond where
 inductive Stmt where
   /-- Bind a source variable. -/
   | assign : Nat → Expr → Stmt
+  /-- White-box call to an independently certified callee IR body: optional
+      result variable (`none` = tail return), arity, body, arguments.
+      The program certificate also requires the callee's lowering certificate.
+      Lowering expands this node; there is no runtime call or schema change. -/
+  | inlineCall : Option Nat → Nat → _root_.Pontifex.Stmt → List Expr → Stmt
   /-- `if c: thenBody else: elseBody`. -/
   | ite : Cond → List Stmt → List Stmt → Stmt
   /-- `while c: body`. -/

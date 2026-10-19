@@ -48,6 +48,13 @@ theorem step_lowering :
     Source.lowerBody stepSource = .ok stepIR.body :=
   rfl
 
+/-- Own lowering and the recursively composed lowering evidence of every callee. -/
+def step_program_lowering_spec : Prop :=
+    Source.lowerBody stepSource = .ok stepIR.body
+
+theorem step_program_lowering : step_program_lowering_spec :=
+  step_lowering
+
 /-- Direct Lean translation of the Python function `step`. -/
 def step (_fuel : Nat) (x : Rat) (v : Rat) (a : Rat) (dt : Rat) : Option (Rat × Rat) :=
   let v_1 := (v + (a * dt));

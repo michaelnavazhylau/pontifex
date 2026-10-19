@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/user_call_helper_array.py:2:10: inlined helper 'helper' supports scalar arithmetic only; arrays are deferred

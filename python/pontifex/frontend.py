@@ -25,7 +25,7 @@ modelled).
 
 Documented subset (v0)
 ----------------------
-* one function per module (or a selected function), no decorators, no
+* one function per module (or an explicitly selected entry point and helpers), no decorators, no
   ``*args``/``**kwargs``/keyword-only parameters, no defaults;
 * scalar parameters (annotations are advisory and are not used for typing);
 * statements: simple/annotated/augmented assignment, ``if``/``else``,
@@ -33,13 +33,17 @@ Documented subset (v0)
 * expressions: names, int/float literals, ``+ - * /``, ``**`` with a small
   non-negative integer exponent, unary minus, ``abs(x)``;
 * conditions: comparisons (one operator, not chained), ``and``/``or``/``not``,
-  boolean literals.
+  boolean literals;
+* arrays: one-dimensional list literals, indexing, functional subscript stores,
+  and ``len(xs)`` (no array aliases, parameters, or results);
+* white-box helper calls: complete assignment/annotated-assignment values or
+  returns, positional scalar arguments, straight-line single-scalar callees,
+  and acyclic transitive dependencies. Callee locals use private fresh slots.
 
 Explicitly rejected: imports, classes, ``for``, ``break``/``continue``,
 ``try``/``except``, ``with``, ``assert``, ``del``, lambdas, comprehensions,
-attribute access, subscripting, lists/dicts/tuples outside ``return``,
-``min``/``max``, conditional expressions, chained comparisons, and any call
-other than ``abs``.
+attribute access, dicts/tuples outside ``return``, ``min``/``max``, conditional
+expressions, chained comparisons, recursion, and other call shapes.
 """
 
 from __future__ import annotations
@@ -49,7 +53,7 @@ import math
 import struct
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 from .errors import FrontendError, UnsupportedError
 from .ir import (
@@ -121,6 +125,8 @@ class Translated:
     source: str
     filename: str
     function_name: str
+    #: Direct, independently lowered white-box dependencies, in encounter order.
+    callees: tuple[Translated, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +199,15 @@ def assigned_names(nodes: Iterable[ast.stmt]) -> set[str]:
 
 
 class _Lowerer:
-    def __init__(self, filename: str, fn_name: str, params: Sequence[str]):
+    def __init__(
+        self, filename: str, fn_name: str, params: Sequence[str], *,
+        resolve: Callable[[ast.Call], Translated],
+        function_names: set[str], local_names: set[str],
+    ):
+        self.resolve = resolve
+        self.function_names = function_names
+        self.local_names = local_names
+        self.callees: dict[str, Translated] = {}
         self.filename = filename
         self.fn_name = fn_name
         self.slot_names: list[str] = list(params)
@@ -268,6 +282,15 @@ class _Lowerer:
                 return self.expr(node.operand)
             raise self.err(node, f"unary operator '{type(node.op).__name__}' is not supported here")
         if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                if node.func.id in self.local_names:
+                    raise self.err(node, f"callable '{node.func.id}' is shadowed by a local variable")
+                if node.func.id in self.function_names:
+                    raise self.err(
+                        node,
+                        "user calls are supported only as a complete assignment value or return; "
+                        "calls nested in expressions, conditions or arguments are deferred",
+                    )
             if (
                 isinstance(node.func, ast.Name)
                 and node.func.id == "abs"
@@ -284,8 +307,8 @@ class _Lowerer:
                 return Len(self.array_expr(node.args[0]))
             raise self.err(
                 node,
-                "only the calls abs(x) and len(xs) are supported; imports, math functions, "
-                "min/max and user calls are rejected by the v0 frontend",
+                "unsupported call: use abs(x), len(xs), or a module-local helper as a "
+                "complete assignment value or return; imports, math functions and min/max are not supported",
             )
         if isinstance(node, ast.Attribute):
             raise self.err(
@@ -412,7 +435,13 @@ class _Lowerer:
                     "unreachable statement: the preceding statement always returns",
                 )
             if isinstance(node, ast.Return):
-                out.append(Ret(self.returns(node)))
+                if self.is_user_call(node.value):
+                    if self.result_arity not in (None, 1):
+                        raise self.err(node, "inlined calls return one scalar, but an earlier return has a different arity")
+                    self.result_arity = 1
+                    out.append(self.call(node.value, None))
+                else:
+                    out.append(Ret(self.returns(node)))
             else:
                 out.append(self.stmt(node))
         return Seq(tuple(out))
@@ -436,7 +465,36 @@ class _Lowerer:
             )
         return exprs
 
+    def is_user_call(self, node: ast.AST | None) -> bool:
+        return (
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id in self.function_names
+        )
+
+    def call(self, node: ast.Call, target: str | None) -> Stmt:
+        from .inline import inline_body
+
+        if node.func.id in self.local_names:
+            raise self.err(node, f"callable '{node.func.id}' is shadowed by a local variable")
+        if node.keywords or any(isinstance(a, ast.Starred) for a in node.args):
+            raise self.err(node, "inlined calls require positional arguments (no keywords or unpacking)")
+        callee = self.resolve(node)
+        if len(node.args) != callee.fn.arity:
+            raise self.err(
+                node, f"call to '{callee.fn.name}' expects {callee.fn.arity} argument(s), got {len(node.args)}",
+            )
+        args = tuple(self.expr(arg) for arg in node.args)
+        self.callees[callee.fn.name] = callee
+        result, slot = inline_body(callee.fn, args, self.fresh, target)
+        if target is not None:
+            assert slot is not None
+            self.env[target] = slot
+            self.kinds[target] = SCALAR
+        return result
+
     def bind(self, name: str, value_node: ast.expr) -> Stmt:
+        if self.is_user_call(value_node):
+            return self.call(value_node, name)
         kind = self.kind(value_node)
         if kind == ARRAY:
             if not isinstance(value_node, ast.List):
@@ -715,32 +773,86 @@ def translate(source: str, *, filename: str = "<string>", function: str | None =
             raise FrontendError(f"no function named '{function}' in {filename}", None, filename)
         target = matches[0]
 
-    params = _check_signature(target, filename)
-    lowerer = _Lowerer(filename, target.name, params)
-    body = lowerer.block(target.body)
+    definitions: dict[str, ast.FunctionDef] = {}
+    for definition in functions:
+        if definition.name in definitions:
+            raise FrontendError(f"duplicate function definition '{definition.name}'", definition, filename)
+        definitions[definition.name] = definition
+    cache: dict[str, Translated] = {}
+    active: list[str] = []
 
-    ret_exprs = _return_exprs(body)
-    if not block_returns(target.body):
-        raise FrontendError(
-            f"function '{target.name}' does not return on every path; "
-            "implicit fall-through (returning None) is not supported",
-            target,
-            filename,
-        )
-    result_names = tuple(
-        lowerer.slot_names[e.index]
-        if isinstance(e, Slot) and e.index < len(lowerer.slot_names)
-        else str(e)
-        for e in ret_exprs
-    )
-    fn = Fn(
-        name=target.name,
-        params=tuple(params),
-        slot_names=tuple(lowerer.slot_names),
-        body=body,
-        result_names=result_names,
-    )
-    return Translated(fn=fn, source=source, filename=filename, function_name=target.name)
+    def resolve(call: ast.Call) -> Translated:
+        name = call.func.id
+        if name in active:
+            raise UnsupportedError(
+                "recursive calls are not supported: " + " -> ".join(active + [name]), call, filename,
+            )
+        helper = definitions[name]
+        # This first slice deliberately has no callee control flow or arrays.
+        # The caller may still contain both; its existing SSA rules are unchanged.
+        for statement in helper.body:
+            if not isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Return, ast.Pass, ast.Expr)):
+                raise UnsupportedError(
+                    f"inlined helper '{name}' must have a straight-line body; callee control flow is deferred",
+                    statement, filename,
+                )
+        if not helper.body or not isinstance(helper.body[-1], ast.Return):
+            raise UnsupportedError(f"inlined helper '{name}' must end with one scalar return", helper, filename)
+        if isinstance(helper.body[-1].value, ast.Tuple):
+            raise UnsupportedError(f"inlined helper '{name}' must return one scalar; tuple results are deferred", helper.body[-1], filename)
+        for statement in helper.body:
+            # Annotations are advisory, not runtime array operations.
+            roots = [statement]
+            if isinstance(statement, ast.AnnAssign):
+                roots = [statement.target] + ([statement.value] if statement.value is not None else [])
+            for node in (node for root in roots for node in ast.walk(root)):
+                if isinstance(node, (ast.List, ast.Subscript)):
+                    raise UnsupportedError(
+                        f"inlined helper '{name}' supports scalar arithmetic only; arrays are deferred", node, filename,
+                    )
+        return compile_function(helper)
+
+    def compile_function(definition: ast.FunctionDef) -> Translated:
+        if definition.name in cache:
+            return cache[definition.name]
+        active.append(definition.name)
+        try:
+            params = _check_signature(definition, filename)
+            local_names = set(params) | {
+                node.id for statement in definition.body for node in ast.walk(statement)
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+            }
+            lowerer = _Lowerer(
+                filename, definition.name, params, resolve=resolve,
+                function_names=set(definitions), local_names=local_names,
+            )
+            body = lowerer.block(definition.body)
+            ret_exprs = _return_exprs(body)
+            if not block_returns(definition.body):
+                raise FrontendError(
+                    f"function '{definition.name}' does not return on every path; "
+                    "implicit fall-through (returning None) is not supported",
+                    definition, filename,
+                )
+            result_names = tuple(
+                lowerer.slot_names[e.index]
+                if isinstance(e, Slot) and e.index < len(lowerer.slot_names) else str(e)
+                for e in ret_exprs
+            )
+            fn = Fn(
+                name=definition.name, params=tuple(params), slot_names=tuple(lowerer.slot_names),
+                body=body, result_names=result_names,
+            )
+            translated = Translated(
+                fn=fn, source=source, filename=filename, function_name=definition.name,
+                callees=tuple(lowerer.callees.values()),
+            )
+            cache[definition.name] = translated
+            return translated
+        finally:
+            active.pop()
+
+    return compile_function(target)
 
 
 def _return_exprs(body: Stmt) -> tuple[Expr, ...]:

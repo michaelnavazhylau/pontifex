@@ -75,7 +75,7 @@ def compile_file(
         namespace=ns,
         fuel=fuel,
         conformance=conformance,
-        generator=f"python -m pontifex compile {path}",
+        generator=f"python -m pontifex compile {path}" + (f" --function {function}" if function else ""),
     )
 
 

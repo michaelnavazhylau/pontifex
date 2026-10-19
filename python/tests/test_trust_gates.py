@@ -79,11 +79,18 @@ def test_audit_manifest_covers_every_generated_certificate():
     audited = set(re.findall(r"#audit_axioms\s+(\S+)", AUDIT_FILE.read_text()))
     missing: list[str] = []
     for path in _generated_modules():
-        namespace = f"Pontifex.Generated.{path.stem}"
-        text = path.read_text()
-        for fn in re.findall(r"def\s+(\w+)IR\s*:\s*Fn", text):
-            for suffix in ("_lowering", "_link"):
-                name = f"{namespace}.{fn}{suffix}"
-                if name not in audited:
-                    missing.append(name)
+        # Call dependencies live in private, recursively nested namespaces.
+        namespaces: list[str] = []
+        for line in path.read_text().splitlines():
+            namespace = re.fullmatch(r"namespace (\S+)", line)
+            if namespace:
+                namespaces.append(namespace.group(1))
+            elif re.fullmatch(r"end \S+", line):
+                namespaces.pop()
+            else:
+                theorem = re.match(r"theorem (\w+)", line)
+                if theorem and theorem.group(1).endswith(("_lowering", "_link")):
+                    name = ".".join([*namespaces, theorem.group(1)])
+                    if name not in audited:
+                        missing.append(name)
     assert not missing, missing
