@@ -100,6 +100,8 @@ python/pyverif/
 examples/               Python programs that are translated
 python/tests/           unit, rejection, differential (incl. Lean oracle) tests
 docs/TRUST.md           trust model, status matrix, open obligations
+docs/RELATED_WORK.md    review of Charon/Aeneas and ranked lessons for us
+docs/related-work/      full reading reports for both upstream repositories
 ```
 
 ## Design notes
@@ -115,6 +117,28 @@ docs/TRUST.md           trust model, status matrix, open obligations
 * **Why emit the IR as a Lean value?** The linkage theorem is a statement about
   the *same data* the frontend emitted; the JSON is that same data in wire form,
   so the Lean JSON decoder can be tested against it.
+
+## Related work
+
+The pipeline is deliberately Aeneas-shaped, so the two upstream projects were
+reviewed in depth: [Charon](https://github.com/AeneasVerif/charon) (rustc MIR to
+a serialized IR) and [Aeneas](https://github.com/AeneasVerif/aeneas) (IR to
+Lean/F*/Coq/HOL4 plus a WP proof layer). Notes and full reports:
+
+- `docs/RELATED_WORK.md` — comparison table and nine ranked, scoped
+  recommendations (outcome lattice and refinement, exceptional outcomes,
+  versioned artifacts, multi-exit lowering, opacity lattice, a `step`-style
+  spec database, negative-test corpus, differential corpus, Float two-tier
+  arithmetic lemmas).
+- `docs/related-work/charon-review.md`,
+  `docs/related-work/aeneas-review.md` — the complete reviews with commit pins
+  and file references.
+
+The main deliberate divergence: Aeneas trusts its translator and relies on
+typechecking plus proof replay, whereas this project checks lowering and code
+generation **per program** in the kernel. Conversely, Aeneas has far stronger
+corpus-scale and proof-UX infrastructure, which is where its lessons are most
+useful.
 
 ## Roadmap
 
