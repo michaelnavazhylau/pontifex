@@ -18,6 +18,16 @@
 
   Slot *names* are not produced: they are cosmetic, and omitting them keeps the
   kernel from having to evaluate string operations.
+
+  `lowerRec` applies the plain mutual recursor `Stmt.rec_1` by hand instead of
+  letting the equation compiler use `brecOn`.  The compiled `brecOn` form
+  carries a "below" structure that duplicates the recursive result at each
+  level; with the growing lowering state that made `rfl` certificates roughly
+  exponential in the length of a straight-line block (issue #21).  The direct
+  recursor keeps the same algorithm with linear reduction cost.  The code
+  generator does not support that mutual recursor yet, so the lowering is
+  `noncomputable`: it is reference/proof code only, while the executable
+  reference is the Python frontend.
 -/
 import Std
 import Pontifex.Core.IR
@@ -199,23 +209,8 @@ def blockReturns : List Stmt → Bool
 
 end
 
-mutual
-
-/-- Lower a block of statements, threading slots and state.
-
-    Recursion is structural on the statement list; callers wrap the resulting
-    list in a `Seq`, matching the Python frontend's block lowering. -/
-def lowerBlock (st : LowerState) : List Stmt →
-    Except String (List _root_.Pontifex.Stmt × LowerState)
-  | [] => .ok ([], st)
-  | s :: rest => do
-      let (s', st') ← lowerStmt st s
-      let (rest', st'') ← lowerBlock st' rest
-      return (s' :: rest', st'')
-
-/-- Lower one statement. -/
-def lowerStmt (st : LowerState) : Stmt →
-    Except String (_root_.Pontifex.Stmt × LowerState)
+/-- Leaf-statement lowering: cases that do not descend into a nested block. -/
+def lowerSimple (st : LowerState) : Stmt → Except String (_root_.Pontifex.Stmt × LowerState)
   | .skip => .ok (.skip, st)
   | .assign v e => do
       -- The right-hand side is lowered *before* the target slot is allocated.
@@ -241,96 +236,136 @@ def lowerStmt (st : LowerState) : Stmt →
   | .ret es => do
       let es' ← es.mapM (lowerExpr st)
       return (.ret es', st)
-  | .ite c t e => do
-      let c' ← lowerCond st c
-      let (thenStmts, stThen) ← lowerBlock st t
-      -- The else branch restarts from the incoming environment but keeps the
-      -- globally increasing slot counter.  An absent `else` is a `Skip`
-      -- (matching the Python frontend).  This is written without a nested
-      -- `do ... return` so that layout and early-return cannot swallow the phi
-      -- construction below.
-      let (elseStmt, stElse) ←
-        match e with
-        | [] => pure ((_root_.Pontifex.Stmt.skip), { stThen with env := st.env })
-        | _ =>
-            (lowerBlock { stThen with env := st.env } e).map
-              (fun (stmts, st') => ((.seq stmts : _root_.Pontifex.Stmt), st'))
-      let thenReturns := blockReturns t
-      let elseReturns := blockReturns e
-      -- Hoisted call results are branch-local SSA temporaries, not user names.
-      let temps := inlineTargets (t ++ e)
-      -- Only names rebound by a path that can still fall through need a phi.
-      let merged :=
-        if thenReturns && elseReturns then []
-        else if thenReturns then differentNames temps st.env stElse.env
-        else if elseReturns then differentNames temps stThen.env st.env
-        else differentNames temps stThen.env stElse.env
-      let (phis, env, next) ←
-        merged.foldlM
-          (fun (acc : List _root_.Pontifex.Phi × List (Nat × Nat) × Nat) v => do
-            if !thenReturns && !elseReturns && (stThen.get? v).isNone then
-              throw s!"source variable {v} may be unbound after the if"
-            if !thenReturns && !elseReturns && (stElse.get? v).isNone then
-              throw s!"source variable {v} may be unbound after the if"
-            -- A definitely-returning branch contributes a dead but defined
-            -- placeholder: the incoming value, else the other branch's slot.
-            let thenSlot ← match stThen.get? v, st.get? v, stElse.get? v with
-              | some slot, _, _ => pure slot
-              | none, some slot, _ => pure slot
-              | none, none, some slot => pure slot
-              | none, none, none =>
-                  throw s!"source variable {v} has no value after the if"
-            let elseSlot ← match stElse.get? v, st.get? v, stThen.get? v with
-              | some slot, _, _ => pure slot
-              | none, some slot, _ => pure slot
-              | none, none, some slot => pure slot
-              | none, none, none =>
-                  throw s!"source variable {v} has no value after the if"
-            let (phis, env, next) := acc
-            return (phis ++ [{ slot := next, lhs := thenSlot, rhs := elseSlot }],
-              (v, next) :: env, next + 1))
-          ([], st.env, stElse.next)
-      return (.ite c' (.seq thenStmts) elseStmt phis,
-        { env := env, next := next })
-  | .whil c body => do
-      -- Hoisted call results are SSA temporaries, never loop-carried variables.
-      let temps := inlineTargets body
-      let bodyNames := (assignedSorted body).filter fun v => !temps.contains v
-      -- A loop-carried variable must already have a value.  Variables first
-      -- assigned inside the body are checked after lowering: an assignment on
-      -- a path that returns never reaches the back edge.
-      let carried := bodyNames.filter fun v => (st.get? v).isSome
-      -- Allocate one header slot per carried variable, in sorted order.
-      let (preSlots, headerSlots, headerEnv, next) ←
-        carried.foldlM
-          (fun (acc : List Nat × List Nat × List (Nat × Nat) × Nat) v => do
-            let preSlot ← st.require v
-            let (pre, headers, env, next) := acc
-            return (pre ++ [preSlot], headers ++ [next], (v, next) :: env, next + 1))
-          ([], [], st.env, st.next)
-      let withHeaders : LowerState := { env := headerEnv, next := next }
-      let c' ← lowerCond withHeaders c
-      let (bodyStmts, stBody) ← lowerBlock withHeaders body
-      let _ ← bodyNames.forM fun v => do
-        if (st.get? v).isNone && (stBody.get? v).isSome then
-          throw s!"source variable {v} is assigned inside the loop but has no value before it"
-      let phis ←
-        (carried.zip (headerSlots.zip preSlots)).mapM
-          (fun (v, (header, pre)) => do
-            let back ← stBody.require v
-            return ({ slot := header, lhs := back, rhs := pre } : _root_.Pontifex.Phi))
-      let init := (headerSlots.zip preSlots).map fun (header, pre) =>
-        (_root_.Pontifex.Stmt.assign header (.slot pre) : _root_.Pontifex.Stmt)
-      return (.seq (init ++ [.whil c' phis (.seq bodyStmts)]),
-        { env := headerEnv, next := stBody.next })
-end
+  | _ => .error "internal: block statement reached leaf lowering"
+
+/-- One direct application of the *plain* mutual recursor `Stmt.rec_1`.
+
+    The equation compiler's `brecOn`-based compilation carries an auxiliary
+    "below" structure that duplicates the recursive result at every level; with
+    a growing lowering state that made `rfl` certificates exponential in the
+    block length.  Applying the recursor by hand keeps the recursive results
+    linear.  `noncomputable` because Lean's code generator does not support the
+    mutual recursor; the kernel still reduces this definition for `rfl`. -/
+noncomputable def lowerRec :
+    List Stmt → LowerState → Except String (List _root_.Pontifex.Stmt × LowerState) :=
+  Stmt.rec_1
+    (motive_1 := fun _ => LowerState → Except String (_root_.Pontifex.Stmt × LowerState))
+    (motive_2 := fun _ => LowerState → Except String (List _root_.Pontifex.Stmt × LowerState))
+    (fun v e => fun st => lowerSimple st (.assign v e))
+    (fun target arity body args => fun st => lowerSimple st (.inlineCall target arity body args))
+    (fun v arity body args => fun st => lowerSimple st (.inlineTemp v arity body args))
+    (fun c t e ihT ihE => fun st => do
+        let c' ← lowerCond st c
+        let (thenStmts, stThen) ← ihT st
+        -- The else branch restarts from the incoming environment but keeps the
+        -- globally increasing slot counter.  An absent `else` is a `Skip`
+        -- (matching the Python frontend).  This is written without a nested
+        -- `do ... return` so that layout and early-return cannot swallow the phi
+        -- construction below.
+        let (elseStmt, stElse) ←
+          match e with
+          | [] => pure ((_root_.Pontifex.Stmt.skip), { stThen with env := st.env })
+          | _ =>
+              (ihE { stThen with env := st.env }).map
+                (fun (stmts, st') => ((.seq stmts : _root_.Pontifex.Stmt), st'))
+        let thenReturns := blockReturns t
+        let elseReturns := blockReturns e
+        -- Hoisted call results are branch-local SSA temporaries, not user names.
+        let temps := inlineTargets (t ++ e)
+        -- Only names rebound by a path that can still fall through need a phi.
+        let merged := 
+          if thenReturns && elseReturns then []
+          else if thenReturns then differentNames temps st.env stElse.env
+          else if elseReturns then differentNames temps stThen.env st.env
+          else differentNames temps stThen.env stElse.env
+        let (phis, env, next) ←
+          merged.foldlM
+            (fun (acc : List _root_.Pontifex.Phi × List (Nat × Nat) × Nat) v => do
+              if !thenReturns && !elseReturns && (stThen.get? v).isNone then
+                throw s!"source variable {v} may be unbound after the if"
+              if !thenReturns && !elseReturns && (stElse.get? v).isNone then
+                throw s!"source variable {v} may be unbound after the if"
+              -- A definitely-returning branch contributes a dead but defined
+              -- placeholder: the incoming value, else the other branch's slot.
+              let thenSlot ← match stThen.get? v, st.get? v, stElse.get? v with
+                | some slot, _, _ => pure slot
+                | none, some slot, _ => pure slot
+                | none, none, some slot => pure slot
+                | none, none, none =>
+                    throw s!"source variable {v} has no value after the if"
+              let elseSlot ← match stElse.get? v, st.get? v, stThen.get? v with
+                | some slot, _, _ => pure slot
+                | none, some slot, _ => pure slot
+                | none, none, some slot => pure slot
+                | none, none, none =>
+                    throw s!"source variable {v} has no value after the if"
+              let (phis, env, next) := acc
+              return (phis ++ [{ slot := next, lhs := thenSlot, rhs := elseSlot }],
+                (v, next) :: env, next + 1))
+            ([], st.env, stElse.next)
+        return (.ite c' (.seq thenStmts) elseStmt phis,
+          { env := env, next := next }))
+    (fun c body ihBody => fun st => do
+        -- Hoisted call results are SSA temporaries, never loop-carried variables.
+        let temps := inlineTargets body
+        let bodyNames := (assignedSorted body).filter fun v => !temps.contains v
+        -- A loop-carried variable must already have a value.  Variables first
+        -- assigned inside the body are checked after lowering: an assignment on
+        -- a path that returns never reaches the back edge.
+        let carried := bodyNames.filter fun v => (st.get? v).isSome
+        -- Allocate one header slot per carried variable, in sorted order.
+        let (preSlots, headerSlots, headerEnv, next) ←
+          carried.foldlM
+            (fun (acc : List Nat × List Nat × List (Nat × Nat) × Nat) v => do
+              let preSlot ← st.require v
+              let (pre, headers, env, next) := acc
+              return (pre ++ [preSlot], headers ++ [next], (v, next) :: env, next + 1))
+            ([], [], st.env, st.next)
+        let withHeaders : LowerState := { env := headerEnv, next := next }
+        let c' ← lowerCond withHeaders c
+        let (bodyStmts, stBody) ← ihBody withHeaders
+        let _ ← bodyNames.forM fun v => do
+          if (st.get? v).isNone && (stBody.get? v).isSome then
+            throw s!"source variable {v} is assigned inside the loop but has no value before it"
+        let phis ←
+          (carried.zip (headerSlots.zip preSlots)).mapM
+            (fun (v, (header, pre)) => do
+              let back ← stBody.require v
+              return ({ slot := header, lhs := back, rhs := pre } : _root_.Pontifex.Phi))
+        let init := (headerSlots.zip preSlots).map fun (header, pre) =>
+          (_root_.Pontifex.Stmt.assign header (.slot pre) : _root_.Pontifex.Stmt)
+        return (.seq (init ++ [.whil c' phis (.seq bodyStmts)]),
+          { env := headerEnv, next := stBody.next }))
+    (fun es => fun st => lowerSimple st (.ret es))
+    (fun st => lowerSimple st .skip)
+    (fun st => .ok ([], st))
+    (fun _head _tail ihH ihT => fun st => do
+        let (s', st') ← ihH st
+        let (rest', st'') ← ihT st'
+        return (s' :: rest', st''))
+
+/-- Lower a block of statements, threading slots and state.
+
+    Callers wrap the resulting list in a `Seq`, matching the Python frontend's
+    block lowering. -/
+noncomputable def lowerBlock (st : LowerState) (ss : List Stmt) :
+    Except String (List _root_.Pontifex.Stmt × LowerState) :=
+  lowerRec ss st
+
+/-- Lower one statement (a singleton block). -/
+noncomputable def lowerStmt (st : LowerState) (s : Stmt) :
+    Except String (_root_.Pontifex.Stmt × LowerState) :=
+  match lowerRec [s] st with
+  | .ok ([x], st') => .ok (x, st')
+  | .ok (_, st') => .ok (.skip, st')
+  | .error e => .error e
 
 /-- Lower a whole core source function, returning the IR body only.
 
     Parameter `i` occupies slot `i`; every other slot is allocated by the
     lowering.  Slot *names* are deliberately not produced: they are cosmetic and
     would force the kernel to evaluate string operations. -/
-def lowerBody (f : Fn) : Except String _root_.Pontifex.Stmt := do
+noncomputable def lowerBody (f : Fn) : Except String _root_.Pontifex.Stmt := do
   let st : LowerState :=
     { env := f.paramIds.zipIdx.map (fun (v, i) => (v, i)), next := f.paramIds.length
       }

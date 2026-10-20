@@ -15,6 +15,20 @@ import pytest
 from pontifex.pipeline import compile_source
 from conftest import ROOT, example_source
 
+
+def _long_straight_line(statements: int = 30) -> str:
+    """A straight-line body long enough to regress issue #21.
+
+    The old `brecOn`-compiled reference lowering was roughly exponential in a
+    block's length: 12 statements already took ~25 s and 16 took minutes.  The
+    direct-recursor lowering checks the whole generated artifact (including
+    executable linkage) in about a second, so the kernel timeout fails loudly if
+    the regression returns.
+    """
+    body = "".join(f"    x = x + {i}\n" for i in range(1, statements + 1))
+    return f"def f(x):\n{body}    return x\n"
+
+
 PROGRAMS = {
     "binder_hygiene": """
         def f(fuel, env, ops, input0):
@@ -188,6 +202,14 @@ def test_new_program_certificates_are_kernel_checked(name, tmp_path):
         assert set(axioms.split(", ")) <= {"propext", "Classical.choice", "Quot.sound"}, (
             result.stdout
         )
+
+
+@pytest.mark.slow
+def test_long_block_lowering_is_kernel_checked(tmp_path):
+    """Issue #21: certificate cost must stay linear in the block length."""
+    artifacts = compile_source(textwrap.dedent(_long_straight_line(30)), namespace="Certificate")
+    result = check_lean(tmp_path, artifacts.lean_source)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.mark.slow

@@ -341,13 +341,17 @@ results/unpacking, keyword/starred/ignored-result calls, array
 arguments/results/locals in helpers, and calls with summaries. Recursion and
 external calls remain unsupported.
 
-**Known scalability limit (deferred, tracked in
-[#21](https://github.com/michaelnavazhylau/pontifex/issues/21)):** the `rfl`
-lowering certificate is roughly exponential in the length of a single statement block
-(~0.7 s at 8 statements, ~3.4 s at 10, over the default heartbeat budget at 11;
-these numbers predate this work). Inlining adds statements, so call-heavy
-functions reach the limit sooner. Fixing the certificate's reduction cost is a
-follow-up, not a call-semantics issue.
+**Certificate cost (#21, fixed):** the `rfl` lowering certificate used to be
+roughly exponential in the length of a straight-line block (~0.7 s at 8
+statements, ~3.4 s at 10, over the default heartbeat budget at 11), so inlining
+(which adds statements) reached the limit sooner. `Source.lowerRec` now applies
+the plain mutual recursor `Source.Stmt.rec_1` instead of the equation compiler's
+`brecOn` form, whose auxiliary "below" structure duplicated the recursive
+result at every level. Reduction is linear: 16 statements check in well under a
+second and 60 in about 0.3 s. The definition is `noncomputable` because Lean's
+code generator does not support the mutual recursor; it is reference/proof code,
+and the executable lowering remains the Python frontend. A regression test
+kernel-checks a 30-statement body. See T16.
 
 ### T14. Opacity lattice and verified-path assertion — **M**
 
@@ -396,6 +400,26 @@ whether array indices remain scalars or become a separate integer sort.
 changes meaning between exact and float modes; array-index conversion is either
 subsumed by the tower or explicitly documented as the remaining exception.
 
+### ✅ T16. Linear-cost lowering certificates ([#21](https://github.com/michaelnavazhylau/pontifex/issues/21)) — **M**, low risk
+
+The reference `Source.lowerBody` previously compiled through `brecOn`, whose
+auxiliary below structure duplicated each recursive result. With the growing
+slot/environment state that made `rfl` certificates roughly exponential in block
+length, and inlining (which adds statements) reached the default heartbeat
+budget sooner. `lowerRec` now applies the plain mutual recursor with explicit
+`motive_1`/`motive_2`, keeping recursive results linear without changing the
+algorithm or any certificate shape. The definition is `noncomputable` because
+Lean's code generator does not support that recursor; the lowering is proof-only
+reference code, while the executable lowering remains the Python frontend.
+
+**Acceptance met.** Every existing generated certificate still checks by `rfl`;
+a 30-statement straight-line body kernel-checks in about a second (regression in
+`test_certificates.py`), the lowering of 60 statements takes ~0.3 s, and a
+complete 50-statement artifact takes ~2 s; the old implementation took ~25 s at
+12 statements and minutes at 16. [`docs/TRUST.md`](docs/TRUST.md)
+records the proof-only status and [`docs/CALLS.md`](docs/CALLS.md) records the
+linear certificate cost.
+
 ---
 
 ## P4 — research options (not scheduled)
@@ -428,11 +452,11 @@ subsumed by the tower or explicitly documented as the remaining exception.
    and summaries remain). **T15a** now implements `min`/`max` and scalar
    conditional expressions. **T14** (opacity) can follow calls. **T15b** should
    be a design spike before any further numeric growth.
-6. **Tooling, independent of P3:** [#16](https://github.com/michaelnavazhylau/pontifex/issues/16)
-   `pontifex check` capability preflight, and
-   [#21](https://github.com/michaelnavazhylau/pontifex/issues/21) lowering-certificate
-   reduction cost. It makes the subset boundary explicit
-   and is a natural home for reporting T12's array restrictions.
+6. **Tooling and follow-ups:** [#16](https://github.com/michaelnavazhylau/pontifex/issues/16)
+   `pontifex check` capability preflight remains open; it makes the subset
+   boundary explicit and is a natural home for reporting T12's array
+   restrictions. [#21](https://github.com/michaelnavazhylau/pontifex/issues/21)
+   lowering-certificate reduction cost is fixed (T16).
 
 ## Explicit non-goals (for now)
 

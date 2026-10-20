@@ -17,9 +17,13 @@ Python file -- trusted parsing/transcription --> core Source AST
 * `<fn>_lowering` checks **agreement** between the emitted IR body and the Lean
   reference lowering of the emitted Source AST, by `rfl`. There is no separate
   Source-language evaluator or semantic-preservation proof for that lowering.
-  The lowering is a formal executable specification, not a verified compiler
+  The lowering is a formal reference specification, not a verified compiler
   for all Python programs. Transcription/desugaring and fidelity of that
-  reference lowering remain trust boundaries.
+  reference lowering remain trust boundaries. The Lean definition is
+  `noncomputable`: it applies `Source.Stmt.rec_1` directly so `rfl` reduction is
+  linear in block length (issue #21), and Lean's code generator does not support
+  that mutual recursor. It is proof-only reference code; the executable lowering
+  is the Python frontend that emits the Source AST.
 * `<fn>_program_lowering` composes that fact with the program lowering
   certificates of every white-box callee recursively. For call-containing
   programs, this is the complete lowering evidence: the caller's `_lowering`
@@ -154,7 +158,7 @@ Core Source `inlineCall` references independently emitted callee IR. Lean's
 `<fn>_program_lowering` additionally requires the callee's program certificate.
 Existing code linkage then checks the expanded IR, without new runtime nodes
 or a schema change. Axiom audits include every nested helper's certificates.
-This is an executable reference algorithm with per-program agreement checks,
+This is a reference algorithm with per-program agreement checks,
 not a universal semantic-preservation theorem for inlining.
 
 ## Scalar selection
