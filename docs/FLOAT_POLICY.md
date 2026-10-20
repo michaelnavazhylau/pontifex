@@ -1,4 +1,4 @@
-# Binary64 boundary and arithmetic policy (schema 3)
+# Binary64 boundary and arithmetic policy (schema 4)
 
 This is an explicit scalar binary64 reading, not a complete model of Python's
 mixed `int`/`float` tower. Its code↔IR certificates are kernel-checked; agreement
@@ -15,7 +15,8 @@ with CPython's native arithmetic is **tested**, not a compiler/hardware proof.
   `Binary64.bits_roundtrip` proves the representation round-trip by `rfl`.
 * Lean's built-in `Float` canonicalizes NaNs. The wire backend is therefore
   `Ops.binary64`, not `Ops.float`. Arithmetic explicitly converts through built-in
-  Float, whereas identity, literal loading, negation, and abs keep raw bits.
+  Float, whereas identity, literal loading, negation, abs, and scalar selection
+  keep the selected raw bits.
 * Float source literals carry both their exact rational value and their original
   bits. Exact mode uses the rational; binary64 uses the bits, so subnormals do not
   go through numerator/denominator conversion. Non-finite **source literals**
@@ -61,10 +62,20 @@ boundary, exercised by the boundary corpus and documented below.
 | `abs`, unary `-` | Clear/flip sign bit; preserve zero signs and NaN payloads |
 | `==`, `!=` | +0 equals -0; NaN equals nothing (including itself) |
 | ordered comparison | False with NaN; ordinary binary64 otherwise |
+| `min(a, b)` | Evaluate both arguments left-to-right; return `b` only if `b < a`, else the original `a` |
+| `max(a, b)` | Evaluate both arguments left-to-right; return `b` only if `b > a`, else the original `a` |
+| `a if c else b` | Evaluate `c`, then only the chosen scalar branch; preserve the selected bits |
 | NaN arithmetic | NaN propagates; computed payload/sign can canonicalize |
 
 The base of `e ** 0` is still evaluated: `(1 / 0) ** 0` fails. Expressions and
 return tuples evaluate left-to-right. Boolean `and`/`or` short-circuit faults.
+
+`min`/`max` retain the **first operand** on ties or unordered comparisons, just
+like Python's two-argument scan (not IEEE `fmin`/`fmax`). This preserves the first
+zero's sign, retains a first NaN's payload/sign, and ignores a second NaN. The
+binary64 backend returns the unchanged operand even for signaling NaNs. Exact
+mode has rational ordering and no NaN/signed-zero values. See
+[SELECTION.md](SELECTION.md) for syntax, restrictions, and evaluation order.
 
 ## Boundary corpus and allowlist
 
@@ -77,13 +88,14 @@ uv run python scripts/check_float_boundaries.py --samples 100000 --arithmetic 40
 Default corpus: 100,000 fixed-seed random bit patterns plus signed zeros,
 smallest/largest subnormals, normal extremes, infinity, quiet/signaling NaNs,
 and decimal source-literal round trips. It compares CPython, Python IR, and
-Lean on identity, `+ - * /`, power, sign/abs, and comparisons. A full local run
-performed **269,724 comparisons**, with **zero unallowlisted mismatches**.
+Lean on identity, `+ - * /`, power, sign/abs, comparisons, `min`/`max`, and
+conditional selection. A full local run performed **296,700 comparisons**, with
+**zero unallowlisted mismatches**.
 
 `corpus/float_allowlist.json` contains one narrow rule: computed arithmetic
 results may differ in bits **only if both results are NaN**. Identity transport,
-literals, sign/abs operations, finite values, infinities, and error outcomes
-cannot use that exemption. The runner reports the number of exemptions and
+literals, sign/abs operations, `min`/`max` and conditional operand selection,
+finite values, infinities, and error outcomes cannot use that exemption. The runner reports the number of exemptions and
 the reason; this is not silent normalization. The local full run used 451
 computed-NaN exemptions (counts can vary by runtime/platform).
 

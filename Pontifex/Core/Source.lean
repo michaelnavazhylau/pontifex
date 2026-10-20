@@ -22,6 +22,8 @@ import Pontifex.Core.IR
 
 namespace Pontifex.Source
 
+mutual
+
 /-- Scalar expressions of the core source language. -/
 inductive Expr where
   | var : Nat → Expr
@@ -38,6 +40,8 @@ inductive Expr where
   | arrayLit : List Expr → Expr
   /-- Functional update `a[i] = v` producing a new array. -/
   | set : Expr → Expr → Expr → Expr
+  /-- Scalar conditional expression with a short-circuiting condition. -/
+  | select : Cond → Expr → Expr → Expr
   deriving Repr
 
 /-- Boolean conditions of the core source language. -/
@@ -49,6 +53,8 @@ inductive Cond where
   | const : Bool → Cond
   deriving Repr
 
+end
+
 /-- Statements of the core source language. -/
 inductive Stmt where
   /-- Bind a source variable. -/
@@ -58,6 +64,9 @@ inductive Stmt where
       The program certificate also requires the callee's lowering certificate.
       Lowering expands this node; there is no runtime call or schema change. -/
   | inlineCall : Option Nat → Nat → _root_.Pontifex.Stmt → List Expr → Stmt
+  /-- A call hoisted out of an expression: the result is a synthetic SSA
+      temporary (`v`), never a user variable. -/
+  | inlineTemp : Nat → Nat → _root_.Pontifex.Stmt → List Expr → Stmt
   /-- `if c: thenBody else: elseBody`. -/
   | ite : Cond → List Stmt → List Stmt → Stmt
   /-- `while c: body`. -/

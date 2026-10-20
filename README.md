@@ -43,6 +43,7 @@ no `sorry`, no `native_decide` in certificates.
 | Translation of Python source to the core AST | **Trusted + tested**, not proved |
 | Array reads, updates, and `len` | **Kernel-checked** per program; bad/out-of-range index is `failed .indexOutOfBounds` |
 | Bounded white-box helper calls | **Kernel-checked** expansion plus compositional per-callee lowering evidence |
+| `min`/`max` and scalar conditional expressions | **Kernel-checked** all-fuel/all-backend linkage; eager operands / lazy branches |
 | Native binary64/CPU arithmetic | **Tested bit-for-bit**, not proved |
 | Native Python numeric tower and exceptions | **Out of scope** |
 
@@ -276,7 +277,10 @@ with module-local helpers; scalar parameters, and:
   `while`, `pass`, `return` of scalars (early returns allowed; every path must
   return the same number of values);
 * expressions: names, int/float literals, `+ - * /`, `**` with an integer literal
-  exponent in `[0, 8]`, unary `-`, `abs(x)`;
+  exponent in `[0, 8]`, unary `-`, `abs(x)`, eager two-positional-argument
+  `min(a, b)`/`max(a, b)`, and lazy scalar `a if condition else b`. Ties/unordered
+  comparisons keep the first `min`/`max` operand, including signed zero and NaN
+  payloads. See [`docs/SELECTION.md`](docs/SELECTION.md);
 * conditions: one comparison at a time, `and` / `or` / `not`, booleans;
 * arrays: one-dimensional list literals `[a, b, c]`, bounds-checked reads
   `xs[i]`, functional updates `xs[i] = v`, and `len(xs)`. Arrays are values in
@@ -284,26 +288,31 @@ with module-local helpers; scalar parameters, and:
   Array parameters, array returns, nested arrays, and augmented subscript
   assignment are rejected. A bad index (fractional, negative) and an
   out-of-range integer index both produce `failed .indexOutOfBounds`;
-* bounded white-box calls: `x = helper(...)`, `x: T = helper(...)`, and
-  `return helper(...)`, with positional scalar arguments and straight-line,
-  single-scalar helpers (including acyclic helper chains). Caller control flow
-  remains supported. Callee control flow, nested expression calls, tuple/array
-  results, keyword/starred calls, and recursion are deferred. See
+* bounded white-box calls: `x = helper(...)`, `x: T = helper(...)`,
+  `return helper(...)`, or a helper call inside a scalar expression (operands,
+  arguments, array elements/indices, store values, return tuples), with
+  positional scalar arguments and straight-line, single-scalar helpers
+  (including acyclic helper chains). Caller control flow remains supported.
+  Expression calls are hoisted in evaluation order; a call may not follow a
+  failing operand in the same statement, and calls inside conditions or
+  conditional-expression branches are rejected. Callee control flow,
+  tuple/array results, keyword/starred calls, and recursion are deferred. See
   [`docs/CALLS.md`](docs/CALLS.md) for the boundary and compositional certificates.
 
 Everything else is rejected with a located, snapshotted diagnostic — no imports,
 `for`, `break`/`continue`, `try`, `with`, lambdas, comprehensions, attribute
-access, `min`/`max`, conditional expressions, or tuple unpacking.
+access, iterable/variadic/keyword `min`/`max`, array-valued conditional
+expressions, scalar truthiness, or tuple unpacking.
 
 ---
 
 ## Validation
 
 ```text
-451 tests (frontend, interpreter, Lean proofs, corpora)
-28-program differential corpus · CPython / exact IR / binary64 IR / Lean oracle
-77 rejected programs with committed diagnostics
-100,000 random binary64 patterns + IEEE edge cases → 269,724 comparisons,
+588 tests (frontend, interpreter, Lean proofs, corpora)
+32-program differential corpus · CPython / exact IR / binary64 IR / Lean oracle
+91 rejected programs with committed diagnostics
+100,000 random binary64 patterns + IEEE edge cases → 296,700 comparisons,
 0 unallowlisted mismatches (451 explicitly counted computed-NaN exemptions)
 ```
 
@@ -321,7 +330,7 @@ points at one layer:
 | --- | --- | --- |
 | `lean.yml` | push to `main`, PR | `lake build` (including the generated axiom audit) plus a full `leanchecker` kernel replay |
 | `python.yml` | push to `main`, PR | `ruff format --check`, generated-artifact and rejection-snapshot freshness, and the full pytest suite on Python 3.10 and 3.13 |
-| `corpus.yml` | push to `main`, PR | 28-program differential corpus and the 100,000-pattern binary64 boundary corpus |
+| `corpus.yml` | push to `main`, PR | 32-program differential corpus and the 100,000-pattern binary64 boundary corpus |
 | `nightly.yml` | daily 04:17 UTC | Re-runs all three with 256 corpus samples, 1,000,000 float patterns, and 32,768 arithmetic cases |
 
 All workflows have read-only repository permissions and use the committed
@@ -377,10 +386,12 @@ scripts/                 generation, corpora, boundary checks, GIF renderer
 * build-time axiom, schema, rejection, corpus, and Float-boundary gates.
 
 **P3 — language growth:** multi-exit returns and one-dimensional state vectors
-with bounds failures are implemented. Function calls are in progress: bounded
-white-box scalar helpers now inline with compositional certificates; broader
-call shapes and summaries remain open. Next are an opacity lattice with a
-verified-path assertion and Python integer/`min`/`max`/conditional semantics.
+with bounds failures are implemented, as are two-argument `min`/`max` and lazy
+scalar conditional expressions (schema 4). Function calls are in progress:
+bounded white-box scalar helpers inline with compositional certificates,
+including expression-position calls hoisted in evaluation order; callee control
+flow and summaries remain open. Next are an opacity lattice
+with a verified-path assertion and the Python integer/numeric-tower decision.
 
 **Research:** a recursively verified source semantics/frontend, native IEEE
 arithmetic proofs, rational-coefficient normalization, and a CFG-first IR with
@@ -422,6 +433,7 @@ certificate** for its small language.
   two-tier specs, and the native-arithmetic boundary.
 * [`docs/STEP_TACTIC.md`](docs/STEP_TACTIC.md) — `pontifex_step` usage and limits.
 * [`docs/CALLS.md`](docs/CALLS.md) — bounded white-box calls and compositional evidence.
+* [`docs/SELECTION.md`](docs/SELECTION.md) — eager `min`/`max`, lazy conditionals, schema migration.
 * [`docs/RELATED_WORK.md`](docs/RELATED_WORK.md) — Charon/Aeneas review and
   ranked lessons.
 * [`TODO.md`](TODO.md) — ordered implementation roadmap.

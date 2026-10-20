@@ -31,6 +31,7 @@ from .ir import (
     Pow,
     Ret,
     Seq,
+    Select,
     Set,
     Skip,
     Slot,
@@ -98,6 +99,10 @@ def make_ops(exact: bool) -> dict[str, Callable]:
         "sub": lambda a, b: a - b,
         "mul": lambda a, b: a * b,
         "div": div,
+        # Two-argument Python scan: keep the first object on ties/unordered
+        # comparisons. Do not use a symmetric IEEE fmin/fmax implementation.
+        "min": lambda a, b: b if b < a else a,
+        "max": lambda a, b: b if b > a else a,
         "pow": lambda a, n: a**n,
         "neg": lambda a: -a,
         "abs": abs,
@@ -139,6 +144,9 @@ def eval_value(e: Expr, env: Mapping[int, Number], ops: Mapping[str, Callable]) 
         return ops["literal"](e.value)
     if isinstance(e, Bin):
         return ops[e.op](eval_scalar(e.lhs, env, ops), eval_scalar(e.rhs, env, ops))
+    if isinstance(e, Select):
+        branch = e.then_ if eval_cond(e.cond, env, ops) else e.else_
+        return eval_scalar(branch, env, ops)
     if isinstance(e, Un):
         return ops[e.op](eval_scalar(e.arg, env, ops))
     if isinstance(e, Pow):

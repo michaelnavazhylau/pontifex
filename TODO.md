@@ -27,8 +27,8 @@ Sizes: **S** ≤ 1 day, **M** 2–4 days, **L** > 1 week.
 ## P0 — trust plumbing and test corpus — ✅ complete
 
 Implemented in this repository: schema/config stamping with `#guard`, build-time
-axiom auditing of every certificate, 77 committed rejection snapshots, and a
-28-program triple-differential corpus (both corpora have grown since P0 closed;
+axiom auditing of every certificate, 91 committed rejection snapshots, and a
+32-program triple-differential corpus (both corpora have grown since P0 closed;
 see the current counts in [README](README.md#validation)).
 
 ### ✅ T1. Stamp the artifact configuration and guard it — **S**, low risk
@@ -43,7 +43,7 @@ policy, future float mode, certificate mode). Charon solves this by embedding
 - add `irVersion`, `fuelPolicy`, and `numericMode` constants to the Python IR
   module and to `Pontifex/Core/IR.lean`;
 - emit `def pontifexConfig : Pontifex.Config := …` in every generated module;
-- `#guard` the invariants the file depends on (e.g. `irVersion = 3`,
+- `#guard` the invariants the file depends on (e.g. `irVersion = 4`,
   `fuelPolicy = .structured`);
 - extend `--check` so a stale version is a build failure.
 
@@ -107,7 +107,7 @@ allowlist with a reason; adding a corpus program requires no test code.
 
 ---
 
-## P1 — semantics hardening — ✅ complete (landed in schema 2; current schema 3)
+## P1 — semantics hardening — ✅ complete (landed in schema 2; current schema 4)
 
 Implemented: generic fuel refinement and total→partial specs; stable failed/stuck
 outcomes; checked left-to-right division and short-circuiting; sparse uninitialized
@@ -305,7 +305,8 @@ Arguments are positional scalar expressions, evaluated once in order before
 callee work, including unused arguments. Fresh private slot frames isolate
 callee locals and parameter reassignments. Forward references and acyclic
 helper chains work; caller branches, loops, early returns, and arrays retain
-their existing rules. No runtime call node or JSON/schema change (still 3).
+their existing rules. Calls added no runtime node or JSON/schema change when
+they landed on schema 3; T15a now uses schema 4.
 
 The core Source AST references each independently emitted callee IR. The Lean
 `Inline.expand` reference algorithm reproduces the Python expansion inside the
@@ -322,10 +323,31 @@ includes transitive helpers, control-flow callers, private locals, eager faults,
 JSON round trips, kernel mutation rejection, three call corpus programs, and
 located rejection snapshots.
 
+**Second slice implemented:** calls may now appear inside scalar expressions —
+operands of arithmetic/`min`/`max`/`abs`/`**`, array elements and indices, the
+value of `xs[i] = v`, augmented-assignment right-hand sides, call arguments, and
+return-tuple elements. Each nested call is hoisted, in Python evaluation order,
+into a fresh-slot assignment before the enclosing statement. The core source AST
+marks it `inlineTemp`, so the result is an SSA temporary that never enters `if`
+merges or loop-carried analysis; the reference lowering binds it locally instead
+of threading extra state. Calls remain rejected inside conditions and
+conditional-expression branches (short-circuit / re-evaluation), and a call may
+not follow a failing operand in the same statement, because hoisting would
+reorder the reported failure.
+
 **Still open (T13 is not complete):** callee branches/loops/early returns,
-calls nested in expressions/conditions/arguments, tuple results/unpacking,
-keyword/starred/ignored-result calls, array arguments/results/locals in helpers,
-and calls with summaries. Recursion and external calls remain unsupported.
+calls inside conditions and conditional-expression branches, tuple
+results/unpacking, keyword/starred/ignored-result calls, array
+arguments/results/locals in helpers, and calls with summaries. Recursion and
+external calls remain unsupported.
+
+**Known scalability limit (deferred, tracked in
+[#21](https://github.com/michaelnavazhylau/pontifex/issues/21)):** the `rfl`
+lowering certificate is roughly exponential in the length of a single statement block
+(~0.7 s at 8 statements, ~3.4 s at 10, over the default heartbeat budget at 11;
+these numbers predate this work). Inlining adds statements, so call-heavy
+functions reach the limit sooner. Fixing the certificate's reduction cost is a
+follow-up, not a call-semantics issue.
 
 ### T14. Opacity lattice and verified-path assertion — **M**
 
@@ -337,15 +359,31 @@ four-level lattice and Aeneas's `is_opaque`.
 **Acceptance.** A function calling an opaque helper still yields a certificate
 for its own body; the generated proof states the opacity precondition explicitly.
 
-### T15a. `min`, `max`, and conditional expressions — **M**
+### T15a. `min`, `max`, and conditional expressions — **M**, schema 4
 
-Add `min(a, b)`, `max(a, b)`, and `a if c else b` with defined, tested numeric
-semantics on the existing scalar types. Desugar to `Ite`/comparisons so the
-lowering certificate stays `rfl`-checked.
+Implemented following [#2](https://github.com/michaelnavazhylau/pontifex/issues/2)'s
+explicit-IR scope (superseding the older frontend-desugaring sketch).
+`BinOp.min` / `BinOp.max` accept exactly two positional scalar arguments and
+evaluate both once, left to right. They return the second operand only when it
+compares strictly less/greater; ties and unordered comparisons retain the first
+operand unchanged, including binary64 zero signs and NaN payloads.
 
-**Acceptance.** The three forms translate through the same path as an explicit
-`if`, appear in the corpus in exact and Float modes, and have rejection cases
-for unsupported arities or array operands.
+`Expr.select` / Source `select` evaluate a boolean-sorted condition, then only
+the selected scalar branch. Expressions and conditions are mutually recursive
+in syntax, evaluation, lowering, and helper relocation. The reference algorithms
+remain kernel-reducible: lowering is still `rfl`-checked. All three forms use
+the independent certified backend, even without statement control flow, with
+full-outcome/all-fuel/all-backend linkage. Schemas 1–3 must be regenerated.
+See [`docs/SELECTION.md`](docs/SELECTION.md).
+
+**Acceptance evidence.** `examples/limited_step.py` and kernel-checked
+straight-line/control-flow/array/helper programs; mutation rejection for source,
+IR, and executable selection changes; eager argument/fault order, lazy branch
+faults and `stuck`, exact/Float differential coverage, strict IEEE edge tests
+(including signaling NaNs, ties, and signed zero), three new corpus programs,
+and snapshots for arity/keyword/unpacking/array/condition restrictions.
+Scalar truthiness, iterable/variadic `min`/`max`, and array results remain out
+of scope; the Python numeric tower is still T15b.
 
 ### T15b. Python integer and numeric-tower semantics — **M**, design spike
 
@@ -387,11 +425,13 @@ subsumed by the tower or explicitly documented as the remaining exception.
 4. ✅ **T11–T12** complete: early returns and one-dimensional arrays with bounds
    failures.
 5. **In progress:** **T13** (bounded white-box calls landed; broader call shapes
-   and summaries remain). **T15a** (`min`/`max`/conditional
-   expressions) is the cheap parallel win, and **T14** (opacity) can follow
-   calls. **T15b** should be a design spike before any further numeric growth.
+   and summaries remain). **T15a** now implements `min`/`max` and scalar
+   conditional expressions. **T14** (opacity) can follow calls. **T15b** should
+   be a design spike before any further numeric growth.
 6. **Tooling, independent of P3:** [#16](https://github.com/michaelnavazhylau/pontifex/issues/16)
-   `pontifex check` capability preflight. It makes the subset boundary explicit
+   `pontifex check` capability preflight, and
+   [#21](https://github.com/michaelnavazhylau/pontifex/issues/21) lowering-certificate
+   reduction cost. It makes the subset boundary explicit
    and is a natural home for reporting T12's array restrictions.
 
 ## Explicit non-goals (for now)

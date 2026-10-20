@@ -1,5 +1,5 @@
 /-
-  Bounded white-box inlining. No call node survives into the IR (schema 3).
+  Bounded white-box inlining. No call node survives into the IR.
   The caller evaluates arguments once, left to right, into a fresh frame;
   callee slots are relocated by an offset. Only straight-line scalar bodies
   ending in one return are accepted. A tail call retains that return.
@@ -13,7 +13,9 @@ import Pontifex.Core.IR
 
 namespace Pontifex.Inline
 
-/-- Relocate scalar arithmetic, rejecting expressions outside this first slice. -/
+mutual
+
+/-- Relocate scalar arithmetic/selection, rejecting array expressions. -/
 def shiftExpr (offset : Nat) : Expr → Except String Expr
   | .slot i => .ok (.slot (offset + i))
   | .lit q => .ok (.lit q)
@@ -21,7 +23,19 @@ def shiftExpr (offset : Nat) : Expr → Except String Expr
   | .bin op a b => do return .bin op (← shiftExpr offset a) (← shiftExpr offset b)
   | .un op a => do return .un op (← shiftExpr offset a)
   | .pow a n => do return .pow (← shiftExpr offset a) n
+  | .select c t e => do
+      return .select (← shiftCond offset c) (← shiftExpr offset t) (← shiftExpr offset e)
   | _ => .error "inlined helpers must use only scalar arithmetic"
+
+/-- Relocate conditions embedded in scalar conditional expressions. -/
+def shiftCond (offset : Nat) : Cond → Except String Cond
+  | .cmp op a b => do return .cmp op (← shiftExpr offset a) (← shiftExpr offset b)
+  | .and a b => do return .and (← shiftCond offset a) (← shiftCond offset b)
+  | .or a b => do return .or (← shiftCond offset a) (← shiftCond offset b)
+  | .not a => do return .not (← shiftCond offset a)
+  | .const b => .ok (.const b)
+
+end
 
 mutual
 

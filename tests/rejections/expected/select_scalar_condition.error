@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/select_scalar_condition.py:2:17: 'Name' is not a supported condition (use comparisons combined with and/or/not)

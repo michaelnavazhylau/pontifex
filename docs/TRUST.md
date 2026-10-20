@@ -30,8 +30,9 @@ Python file -- trusted parsing/transcription --> core Source AST
   `evalS`, or `evalC`; they independently emit operations, control flow, and
   phi copies.
   Parent certificates compose child certificates, with fuel induction for loops.
-* Fallible arithmetic (division/power) uses the same certified backend even
-  without control flow. It preserves all outcomes, not just successful results.
+* Fallible arithmetic (division/power) and scalar selection (`min`/`max` and
+  conditional expressions) use the same certified backend even without statement
+  control flow. It preserves all outcomes, not just successful results.
 * Infallible straight-line code keeps the small direct `Rat`/tuple translation,
   with `<fn>_link := rfl` at a selected literal fuel. That function ignores its
   fuel parameter; its linkage theorem is **not** an all-fuel statement.
@@ -137,9 +138,16 @@ at complete assignment/return sites, with positional scalar arguments. It
 preserves eager left-to-right evaluation in a private fresh-slot frame; unused
 arguments and potentially failing dead callee assignments are retained. Caller
 branches, loops, early returns, and arrays still use their existing paths.
-Forward definitions and acyclic helper chains are supported, but recursive,
-nested-expression, summary/opaque, array, tuple-result, and control-flow-callee
-calls are deferred. See [CALLS.md](CALLS.md) for the precise subset.
+Forward definitions and acyclic helper chains are supported, as are calls inside
+scalar expressions (operands, arguments, array elements/indices, store values,
+return tuples). A nested call is hoisted into a fresh-slot assignment before the
+enclosing statement, in evaluation order; because a hoisted call would otherwise
+run before an earlier failing operand, or the wrong number of times in a
+condition, those two placements are rejected. Hoisted results are `inlineTemp`
+SSA temporaries and never participate in merges or loop-carried headers.
+Recursive, condition-position, summary/opaque, array, tuple-result, and
+control-flow-callee calls are deferred. See [CALLS.md](CALLS.md) for the precise
+subset and its practical size limit.
 
 Core Source `inlineCall` references independently emitted callee IR. Lean's
 `Inline.expand` checks the expansion via the caller's `rfl` lowering fact;
@@ -148,6 +156,29 @@ Existing code linkage then checks the expanded IR, without new runtime nodes
 or a schema change. Axiom audits include every nested helper's certificates.
 This is an executable reference algorithm with per-program agreement checks,
 not a universal semantic-preservation theorem for inlining.
+
+## Scalar selection
+
+`min(a, b)` / `max(a, b)` are explicit binary IR operations, with exactly two
+positional scalar operands. Both arguments evaluate once, left to right; the
+second replaces the first only when it compares strictly less/greater. Ties
+and unordered NaN comparisons retain the first operand, including its original
+binary64 sign/payload bits. These are Python's scan semantics, not symmetric
+IEEE `fmin`/`fmax`.
+
+`a if c else b` is `Expr.select`: it evaluates the existing boolean-sorted
+condition, then only the selected scalar expression. Condition faults propagate
+before either branch; an unselected fault/unset slot is not observed. Static
+frontend validation still requires both branches to be supported scalar syntax.
+No statement-level fuel is added by expression evaluation.
+
+The Source syntax, lowering, runtime evaluation, and helper relocation are
+mutually recursive over expressions/conditions. The reference algorithms remain
+kernel-reducible, so lowering is still checked by `rfl`; independent generated
+code has full-outcome linkage for all arithmetic backends/environments/fuels.
+No universal Python-preservation or hardware-comparison proof is claimed.
+Strict differential tests cover NaNs, signed zeros, ties, and eager/lazy faults;
+selection cannot use the computed-NaN exemption. See [SELECTION.md](SELECTION.md).
 
 ## Numeric readings and transport
 
@@ -172,9 +203,10 @@ See **[FLOAT_POLICY.md](FLOAT_POLICY.md)** for the precise boundary contract.
   Float readings are deliberate scalar interpretations, not interchangeable
   claims about all accepted Python expressions.
 
-Schema **3** covers tagged slot values (`Val`), array expressions, and the
-array-index policy; schema-2 and schema-1 artifacts are intentionally rejected
-and must be regenerated.
+Schema **4** adds explicit `min`/`max` binary operators and scalar conditional
+selection to schema 3's tagged values, array expressions, and index policy.
+Schema-1, schema-2, and schema-3 artifacts are intentionally rejected by both
+JSON decoders and must be regenerated.
 
 ## Fuel convention
 

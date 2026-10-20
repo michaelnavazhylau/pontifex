@@ -22,9 +22,13 @@ def advance(x, v, a, dt):
 
 ## Supported boundary
 
-* A call is the **whole value** of `name = helper(...)`, `name: T = helper(...)`,
-  or `return helper(...)`. Assignment callees return one scalar. A caller may
-  still return multiple scalars normally, but all its returns must agree in arity.
+* A call may be the **whole value** of `name = helper(...)`, `name: T = helper(...)`,
+  or `return helper(...)`, or it may appear **inside a scalar expression**:
+  operands of `+ - * /`, `min`/`max`, `abs`, `**`, array literals, `xs[i]`
+  indices, the value of `xs[i] = v`, augmented-assignment right-hand sides, call
+  arguments, and return-tuple elements. Assignment callees return one scalar. A
+  caller may still return multiple scalars normally, but all its returns must
+  agree in arity.
 * Helpers are module-local functions with straight-line assignments, `pass`/
   docstrings, and one final scalar return. Existing signature restrictions apply;
   annotations remain advisory. Parameters may be reassigned.
@@ -38,15 +42,46 @@ def advance(x, v, a, dt):
   before the assignment. Such calls are rejected rather than treated as globals.
   Duplicate module function definitions are also rejected.
 
-Deferred: calls inside arithmetic/conditions/arguments, keyword/starred calls,
+Scalar `min`/`max` and conditional expressions are supported inside straight-line
+helpers and scalar call arguments; see [SELECTION.md](SELECTION.md).
+
+Deferred: calls inside conditions (`if`/`while`, `and`/`or`/`not`) and inside
+conditional-expression branches, keyword/starred calls,
 ignored-result calls, tuple unpacking/results, callee branches/loops/early
 returns, array arguments/results/locals in helpers, recursion, external calls,
 and summary/opaque calls. Unsupported shapes fail with located diagnostics.
 
+## Expression-position calls and evaluation order
+
+A call nested in an expression is **hoisted** to a fresh-slot assignment emitted
+immediately before the enclosing statement, and the expression then reads that
+slot. Hoisted results are SSA temporaries (the core source node is
+`inlineTemp`): they are not user variables, so they never become `if` merge
+inputs or loop-carried headers, even though the lowering binds them while
+lowering the enclosing block.
+
+Evaluation order is Python's, with one explicit restriction:
+
+* Operands are lowered left to right, so `helper(a) + helper(b)` calls `helper`
+  twice in order, and arguments are evaluated once, left to right, before the
+  callee body runs.
+* A call may **not** follow an expression that can fail in the same statement —
+  division, power, indexing, array update, or conditional selection. Hoisting
+  would run the call before that earlier failure, changing the reported outcome,
+  so the frontend rejects the program and asks you to bind the earlier value to
+  a variable first. For example `xs[0] + helper(x)` is rejected, while
+  `y = xs[0]` followed by `y + helper(x)` is accepted.
+* Calls are rejected in **conditions** (`if`/`while` tests, `and`/`or`/`not`) and
+  in conditional-expression branches: conditions short-circuit and loop
+  conditions re-run, so a hoisted call would be evaluated in the wrong number of
+  times. Bind the call to a variable before the construct instead.
+* Calls inside loop bodies are re-evaluated on every iteration, because the
+  hoisted statement lives in the body block.
+
 ## Expansion and certificates
 
-There is **no new runtime call node or JSON schema**: schema 3 still contains
-only the existing IR. At each call site Python's inliner:
+Calls add **no runtime call node or JSON schema change**: they landed on schema
+3; the current schema is 4 after T15a's scalar-selection extension. At each call site Python's inliner:
 
 1. allocates fresh slots for the whole callee frame;
 2. evaluates arguments once, left to right, into the parameter slots;
@@ -59,12 +94,13 @@ Failures propagate in Python evaluation order; no call is hoisted out of its
 branch or loop. Fuel measures the **expanded IR's structured depth**, not Python
 call depth, and expansion can increase the needed budget.
 
-The emitted core Source AST retains an `inlineCall` referencing the independently
-emitted callee IR (inside a private `CalleeN` namespace). `Source.lowerBody`
-expands it with Lean's independent `Inline.expand` algorithm. The caller's usual
-`<fn>_lowering := rfl` checks argument transcription, frame offsets, expansion,
-and the surrounding SSA lowering. The callee's own `_lowering := rfl` checks
-its source-to-IR agreement.
+The emitted core Source AST retains an `inlineCall` (assignment/return position)
+or `inlineTemp` (hoisted) node referencing the independently emitted callee IR
+(inside a private `CalleeN` namespace). `Source.lowerBody` expands it with Lean's
+independent `Inline.expand` algorithm. The caller's usual `<fn>_lowering := rfl`
+checks argument transcription, frame offsets, expansion, hoisting order, and the
+surrounding SSA lowering. The callee's own `_lowering := rfl` checks its
+source-to-IR agreement.
 
 **`<fn>_program_lowering`** composes the caller's lowering fact with every
 callee's program certificate recursively. For calls, this is the complete
@@ -73,6 +109,18 @@ referenced IR, not that callee IR's agreement with its source. All generated
 per-function/program lowering and code-linkage certificates are axiom-audited.
 The existing `_link` / `_compiled_link` then check the independently emitted
 executable against the expanded IR; no codegen/interpreter changes are needed.
+
+### Practical size limit
+
+Every inlined call adds several IR statements, and the `rfl` lowering
+certificate currently costs roughly twice as much kernel work per additional
+statement in a block. Small functions (one or two call sites) check in well under
+a second; longer ones can exhaust Lean's default heartbeat budget. This is a
+pre-existing property of the reference-lowering certificate rather than of
+inlining, and it is tracked as
+[#21](https://github.com/michaelnavazhylau/pontifex/issues/21); keeping a
+function's statement count modest (or binding intermediate results) keeps
+certificates fast.
 
 As before, these are per-program agreement checks, **not a semantic-preservation
 proof of Python desugaring or inlining**. The inliner's fidelity and the Python

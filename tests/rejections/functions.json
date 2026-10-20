@@ -1,12 +1,17 @@
 {
+  "call_after_faulting_expression.py": "f",
+  "call_after_index_read.py": "f",
+  "call_in_boolean_condition.py": "f",
+  "call_in_if_condition.py": "f",
+  "call_in_select_branch.py": "f",
+  "call_in_while_condition.py": "f",
   "user_call_arity.py": "f",
-  "user_call_keywords.py": "f",
-  "user_call_nested.py": "f",
-  "user_call_control_flow.py": "f",
-  "user_call_tuple.py": "f",
   "user_call_array.py": "f",
-  "user_call_shadow.py": "f",
-  "user_call_mutual_recursion.py": "f",
+  "user_call_control_flow.py": "f",
   "user_call_helper_array.py": "f",
+  "user_call_keywords.py": "f",
+  "user_call_mutual_recursion.py": "f",
+  "user_call_shadow.py": "f",
+  "user_call_tuple.py": "f",
   "user_call_unpack.py": "f"
 }

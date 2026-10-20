@@ -45,6 +45,7 @@ from .ir import (
     Pow,
     Ret,
     Seq,
+    Select,
     Set,
     Skip,
     Slot,
@@ -127,6 +128,8 @@ def expr_of_ir(e: Expr) -> str:
         return f"(.bin .{e.op} {expr_of_ir(e.lhs)} {expr_of_ir(e.rhs)})"
     if isinstance(e, Un):
         return f"(.un .{e.op} {expr_of_ir(e.arg)})"
+    if isinstance(e, Select):
+        return f"(.select {cond_of_ir(e.cond)} {expr_of_ir(e.then_)} {expr_of_ir(e.else_)})"
     if isinstance(e, Index):
         return f"(.index {expr_of_ir(e.array)} {expr_of_ir(e.index)})"
     if isinstance(e, Len):
@@ -284,10 +287,16 @@ def needs_checked_backend(s: Stmt) -> bool:
 
     def checked(value):
         if isinstance(value, dict):
-            if (
-                value.get("k") in {"ite", "while", "pow", "index", "len", "arrayLit", "set"}
-                or value.get("op") == "div"
-            ):
+            if value.get("k") in {
+                "ite",
+                "while",
+                "pow",
+                "index",
+                "len",
+                "arrayLit",
+                "set",
+                "select",
+            } or value.get("op") in {"div", "min", "max"}:
                 return True
             return any(checked(v) for v in value.values())
         if isinstance(value, list):

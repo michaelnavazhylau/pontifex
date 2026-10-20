@@ -10,7 +10,27 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Callable, Sequence
 
-from .ir import Assign, Bin, Expr, Fn, Lit, Pow, Ret, Seq, Skip, Slot, Stmt, Un
+from .ir import (
+    And,
+    Assign,
+    Bin,
+    Cmp,
+    Cond,
+    Expr,
+    Fn,
+    Lit,
+    Not,
+    Or,
+    Pow,
+    Ret,
+    Select,
+    Seq,
+    Skip,
+    Slot,
+    Stmt,
+    Un,
+    Where,
+)
 
 
 def shift_expr(expr: Expr, offset: int) -> Expr:
@@ -20,10 +40,28 @@ def shift_expr(expr: Expr, offset: int) -> Expr:
         return expr
     if isinstance(expr, Bin):
         return replace(expr, lhs=shift_expr(expr.lhs, offset), rhs=shift_expr(expr.rhs, offset))
+    if isinstance(expr, Select):
+        return Select(
+            shift_cond(expr.cond, offset),
+            shift_expr(expr.then_, offset),
+            shift_expr(expr.else_, offset),
+        )
     if isinstance(expr, (Un, Pow)):
         field = "arg" if isinstance(expr, Un) else "base"
         return replace(expr, **{field: shift_expr(getattr(expr, field), offset)})
     raise ValueError("inlined helpers must use only scalar arithmetic")
+
+
+def shift_cond(cond: Cond, offset: int) -> Cond:
+    if isinstance(cond, Cmp):
+        return replace(cond, lhs=shift_expr(cond.lhs, offset), rhs=shift_expr(cond.rhs, offset))
+    if isinstance(cond, (And, Or)):
+        return replace(cond, lhs=shift_cond(cond.lhs, offset), rhs=shift_cond(cond.rhs, offset))
+    if isinstance(cond, Not):
+        return replace(cond, arg=shift_cond(cond.arg, offset))
+    if isinstance(cond, Where):
+        return cond
+    raise TypeError(type(cond))
 
 
 def flatten(stmt: Stmt) -> list[Stmt]:

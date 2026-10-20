@@ -35,6 +35,16 @@ import Pontifex.Audit.Command
 #audit_axioms Pontifex.Generated.CallStep.advance_lowering
 #audit_axioms Pontifex.Generated.CallStep.advance_program_lowering
 #audit_axioms Pontifex.Generated.CallStep.advance_link
+#audit_axioms Pontifex.Generated.LimitedStep.advance_lowering
+#audit_axioms Pontifex.Generated.LimitedStep.advance_program_lowering
+#audit_axioms Pontifex.Generated.LimitedStep.advance_compiled_link
+#audit_axioms Pontifex.Generated.LimitedStep.advance_link
+#audit_axioms Pontifex.Generated.CallNested.Callee0.scale_lowering
+#audit_axioms Pontifex.Generated.CallNested.Callee0.scale_program_lowering
+#audit_axioms Pontifex.Generated.CallNested.Callee0.scale_link
+#audit_axioms Pontifex.Generated.CallNested.advance_lowering
+#audit_axioms Pontifex.Generated.CallNested.advance_program_lowering
+#audit_axioms Pontifex.Generated.CallNested.advance_link
 #audit_axioms Pontifex.Examples.freeFall_matches_spec
 #audit_axioms Pontifex.Examples.harmonicOscillator_matches_spec
 #audit_axioms Pontifex.Examples.freeFall_ir_matches_spec

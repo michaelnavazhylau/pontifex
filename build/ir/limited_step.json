@@ -1,0 +1,127 @@
+{
+  "irVersion": 4,
+  "name": "advance",
+  "params": [
+    "x",
+    "v",
+    "a",
+    "dt",
+    "limit"
+  ],
+  "slotNames": [
+    "x",
+    "v",
+    "a",
+    "dt",
+    "limit",
+    "v_1",
+    "x_1"
+  ],
+  "body": {
+    "k": "seq",
+    "ss": [
+      {
+        "k": "assign",
+        "slot": 5,
+        "e": {
+          "k": "bin",
+          "op": "min",
+          "l": {
+            "k": "bin",
+            "op": "max",
+            "l": {
+              "k": "bin",
+              "op": "add",
+              "l": {
+                "k": "slot",
+                "i": 1
+              },
+              "r": {
+                "k": "bin",
+                "op": "mul",
+                "l": {
+                  "k": "slot",
+                  "i": 2
+                },
+                "r": {
+                  "k": "slot",
+                  "i": 3
+                }
+              }
+            },
+            "r": {
+              "k": "un",
+              "op": "neg",
+              "e": {
+                "k": "slot",
+                "i": 4
+              }
+            }
+          },
+          "r": {
+            "k": "slot",
+            "i": 4
+          }
+        }
+      },
+      {
+        "k": "assign",
+        "slot": 6,
+        "e": {
+          "k": "bin",
+          "op": "add",
+          "l": {
+            "k": "slot",
+            "i": 0
+          },
+          "r": {
+            "k": "bin",
+            "op": "mul",
+            "l": {
+              "k": "slot",
+              "i": 5
+            },
+            "r": {
+              "k": "slot",
+              "i": 3
+            }
+          }
+        }
+      },
+      {
+        "k": "ret",
+        "es": [
+          {
+            "k": "select",
+            "c": {
+              "k": "cmp",
+              "op": "gt",
+              "l": {
+                "k": "slot",
+                "i": 6
+              },
+              "r": {
+                "k": "lit",
+                "num": 0,
+                "den": 1
+              }
+            },
+            "t": {
+              "k": "slot",
+              "i": 6
+            },
+            "e": {
+              "k": "lit",
+              "num": 0,
+              "den": 1
+            }
+          },
+          {
+            "k": "slot",
+            "i": 5
+          }
+        ]
+      }
+    ]
+  }
+}

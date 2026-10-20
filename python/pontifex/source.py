@@ -2,7 +2,9 @@
 
 The frontend validates the supported subset; this module performs the *purely
 syntactic* desugaring (augmented assignment, explicit `**`, `abs`, docstring and
-`pass` removal) and emits the core AST as a Lean value.
+`pass` removal) and emits the core AST as a Lean value. Scalar min/max remain
+explicit binary operations and conditional expressions retain their condition
+and branches; neither duplicates operand evaluation.
 
 Variable names are replaced by integer ids assigned in **sorted name order**, so
 that "sorted assigned names" in the SSA lowering becomes "sorted ids". The Lean
@@ -96,6 +98,13 @@ class Set(SExpr):
     value: SExpr
 
 
+@dataclass(frozen=True)
+class Select(SExpr):
+    cond: SCond
+    then_: SExpr
+    else_: SExpr
+
+
 class SCond:
     pass
 
@@ -142,6 +151,15 @@ class Assign(SStmt):
 @dataclass(frozen=True)
 class InlineCall(SStmt):
     target: int | None
+    callee: str
+    args: tuple[SExpr, ...]
+
+
+@dataclass(frozen=True)
+class InlineTemp(SStmt):
+    """A call hoisted out of an expression: the result is an SSA temporary."""
+
+    target: int
     callee: str
     args: tuple[SExpr, ...]
 
@@ -194,7 +212,7 @@ class _NameCollector(ast.NodeVisitor):
             self.visit(node.value)
 
     def visit_Call(self, node: ast.Call) -> None:
-        # The callee is a builtin (abs), not a program variable.
+        # A builtin or module-local helper name is not a program variable.
         for argument in node.args:
             self.visit(argument)
         for keyword in node.keywords:
@@ -221,6 +239,14 @@ class _Desugar:
         self.filename = filename
         self.callees = {callee.function_name for callee in callees}
         self.ids = _NameTable(fn)
+        #: Synthetic ids for hoisted call results. Real ids are 0..n-1, so these
+        #: never collide; the reference lowering treats them as SSA temporaries
+        #: (excluded from user-variable merges and loop-carried analysis).
+        self.next_id = len(self.ids.ids)
+        self.pending: list[SStmt] = []
+        self.pending_fault = False
+        self.in_cond = 0
+        self.call_counter = 0
 
     def err(self, node: ast.AST, msg: str) -> UnsupportedError:
         return UnsupportedError(msg, node, self.filename)
@@ -251,11 +277,15 @@ class _Desugar:
                 if isinstance(node.right.value, bool) or not (0 <= n <= MAX_POW_EXPONENT):
                     raise self.err(node, f"exponent must be in [0, {MAX_POW_EXPONENT}]")
                 base = self.expr(node.left)
+                self.pending_fault = True
                 return Pow(base, n)
             op = BIN_OPS.get(type(node.op))
             if op is None:
                 raise self.err(node, f"unsupported operator {type(node.op).__name__}")
-            return Bin(op, self.expr(node.left), self.expr(node.right))
+            value = Bin(op, self.expr(node.left), self.expr(node.right))
+            if op == "div":
+                self.pending_fault = True
+            return value
         if isinstance(node, ast.UnaryOp):
             if isinstance(node.op, ast.USub):
                 return Un("neg", self.expr(node.operand))
@@ -263,6 +293,12 @@ class _Desugar:
                 return self.expr(node.operand)
             raise self.err(node, "unsupported unary operator")
         if isinstance(node, ast.Call):
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id in self.callees
+                and node.func.id not in self.ids.ids
+            ):
+                return self.call_expr(node)
             if (
                 isinstance(node.func, ast.Name)
                 and node.func.id == "abs"
@@ -277,16 +313,48 @@ class _Desugar:
                 and not node.keywords
             ):
                 return Len(self.expr(node.args[0]))
-            raise self.err(node, "only abs(x) and len(xs) calls are supported")
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id in {"min", "max"}
+                and len(node.args) == 2
+                and not node.keywords
+            ):
+                return Bin(node.func.id, self.expr(node.args[0]), self.expr(node.args[1]))
+            raise self.err(
+                node, "only abs(x), len(xs), min(a, b) and max(a, b) expression calls are supported"
+            )
+        if isinstance(node, ast.IfExp):
+            for branch in (node.body, node.orelse):
+                if any(
+                    isinstance(child, ast.Call)
+                    and isinstance(child.func, ast.Name)
+                    and child.func.id in self.callees
+                    for child in ast.walk(branch)
+                ):
+                    raise self.err(branch, "calls inside a conditional expression are deferred")
+            value = Select(self.cond(node.test), self.expr(node.body), self.expr(node.orelse))
+            self.pending_fault = True
+            return value
         if isinstance(node, ast.Subscript):
             if isinstance(node.slice, ast.Slice):
                 raise self.err(node, "slices are not supported")
-            return Index(self.expr(node.value), self.expr(node.slice))
+            value = Index(self.expr(node.value), self.expr(node.slice))
+            self.pending_fault = True
+            return value
         if isinstance(node, ast.List):
             return ArrayLit(tuple(self.expr(e) for e in node.elts))
         raise self.err(node, f"expression '{type(node).__name__}' is not supported")
 
     def cond(self, node: ast.expr) -> SCond:
+        # Conditions short-circuit and loop conditions re-run, so a call can
+        # neither be hoisted out of one nor duplicated.
+        self.in_cond += 1
+        try:
+            return self.cond_(node)
+        finally:
+            self.in_cond -= 1
+
+    def cond_(self, node: ast.expr) -> SCond:
         if isinstance(node, ast.Compare):
             if len(node.ops) != 1 or len(node.comparators) != 1:
                 raise self.err(node, "chained comparisons are not supported")
@@ -309,7 +377,33 @@ class _Desugar:
     # -- statements --------------------------------------------------------
 
     def block(self, nodes: Sequence[ast.stmt]) -> tuple[SStmt, ...]:
-        return tuple(self.stmt(node) for node in nodes)
+        out: list[SStmt] = []
+        for node in nodes:
+            self.pending_fault = False
+            statement = self.stmt(node)
+            # Hoisted calls were evaluated before this statement.
+            out.extend(self.pending)
+            self.pending.clear()
+            out.append(statement)
+        return tuple(out)
+
+    def call_expr(self, node: ast.Call) -> SExpr:
+        """Hoist a helper call to a synthetic id assigned before the statement."""
+        if self.in_cond:
+            raise self.err(node, "calls inside a condition are not supported")
+        if self.pending_fault:
+            raise self.err(
+                node,
+                "a call may not follow an expression that can fail; assign that value first",
+            )
+        self.pending_fault = False
+        args = tuple(self.expr(arg) for arg in node.args)
+        result = self.next_id
+        self.next_id += 1
+        self.pending.append(InlineTemp(result, node.func.id, args))
+        self.call_counter += 1
+        self.pending_fault = False
+        return Var(result)
 
     def call(self, value: ast.expr, target: int | None) -> InlineCall | None:
         if (
@@ -337,10 +431,12 @@ class _Desugar:
                         target, "only subscript assignment to a named array is supported"
                     )
                 var = self.ids(target.value.id)
-                return Assign(
-                    var,
-                    Set(Var(var), self.expr(target.slice), self.expr(node.value)),
-                )
+                # `xs[i] = v` evaluates v, then the array, then the index.
+                stored = self.expr(node.value)
+                array = Var(var)
+                index = self.expr(target.slice)
+                self.pending_fault = True
+                return Assign(var, Set(array, index, stored))
             if not isinstance(target, ast.Name):
                 raise self.err(node, "only 'name = expr' and 'xs[i] = expr' are supported")
             var = self.ids(target.id)
@@ -376,9 +472,10 @@ class _Desugar:
         raise self.err(node, f"statement '{type(node).__name__}' is not supported")
 
     def source_fn(self) -> SourceFn:
+        body = self.block(self.fn.body)
         return SourceFn(
             param_ids=tuple(self.ids(arg.arg) for arg in self.fn.args.args),
-            body=self.block(self.fn.body),
+            body=body,
         )
 
 
@@ -416,6 +513,8 @@ def _expr(e: SExpr) -> str:
         return f"(.bin .{e.op} {_expr(e.lhs)} {_expr(e.rhs)})"
     if isinstance(e, Un):
         return f"(.un .{e.op} {_expr(e.arg)})"
+    if isinstance(e, Select):
+        return f"(.select {_cond(e.cond)} {_expr(e.then_)} {_expr(e.else_)})"
     if isinstance(e, Index):
         return f"(.index {_expr(e.array)} {_expr(e.index)})"
     if isinstance(e, Len):
@@ -448,6 +547,10 @@ def _stmt(s: SStmt, callees: dict[str, str]) -> str:
         target = "none" if s.target is None else f"(some {s.target})"
         args = ", ".join(_expr(arg) for arg in s.args)
         return f"(.inlineCall {target} {callee}Source.paramIds.length {callee}IR.body [{args}])"
+    if isinstance(s, InlineTemp):
+        callee = callees[s.callee]
+        args = ", ".join(_expr(arg) for arg in s.args)
+        return f"(.inlineTemp {s.target} {callee}Source.paramIds.length {callee}IR.body [{args}])"
     if isinstance(s, Skip):
         return ".skip"
     if isinstance(s, Assign):

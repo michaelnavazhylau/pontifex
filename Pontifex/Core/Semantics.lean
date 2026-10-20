@@ -148,6 +148,10 @@ def evalV (o : Ops α) (env : Env α) : Expr → Eval (Val α)
       | .sub => return .scalar (o.sub x y)
       | .mul => return .scalar (o.mul x y)
       | .div => return .scalar (← checkedDiv o x y)
+      -- Python's two-argument scan keeps the first operand on ties or an
+      -- unordered comparison, preserving its bits (signed zero / NaN payload).
+      | .min => return .scalar (if o.lt y x then y else x)
+      | .max => return .scalar (if o.gt y x then y else x)
   | .un op a => do
       let v ← evalV o env a
       let x ← v.asScalar
@@ -172,6 +176,10 @@ def evalV (o : Ops α) (env : Env α) : Expr → Eval (Val α)
       let vi ← evalV o env i
       let idx ← vi.asScalar
       setVal o xs idx value
+  | .select c t e => do
+      let b ← evalC o env c
+      let v ← ((if b then evalV o env t else evalV o env e) : Eval (Val α))
+      return .scalar (← v.asScalar)
 
 /-- Evaluate the elements of an array literal left to right.
 
@@ -186,19 +194,15 @@ def evalScalars (o : Ops α) (env : Env α) : List Expr → Eval (List α)
       let xs ← evalScalars o env rest
       return x :: xs
 
-end
-
-/-- Scalar reading of an expression: evaluate to a `Val`, then require a scalar. -/
-def evalS (o : Ops α) (env : Env α) (e : Expr) : Eval α :=
-  match evalV o env e with
-  | .ok v => v.asScalar
-  | .error f => .error f
-
-/-- Conditions short-circuit, including their failure behavior. -/
+/-- Conditions short-circuit, including their failure behavior.
+    Mutual with value evaluation because scalar selection can contain a condition. -/
 def evalC (o : Ops α) (env : Env α) : Cond → Eval Bool
   | .cmp op a b => do
-      let x ← evalS o env a
-      let y ← evalS o env b
+      -- Ascription matters: do-notation must not distribute the continuation
+      -- into the match, or the definitional shape stops matching the emitted
+      -- scalar wrappers for arbitrary environments. These are `evalS`'s body.
+      let x ← ((match evalV o env a with | .ok v => v.asScalar | .error f => .error f) : Eval α)
+      let y ← ((match evalV o env b with | .ok v => v.asScalar | .error f => .error f) : Eval α)
       return match op with
       | .lt => o.lt x y
       | .le => o.le x y
@@ -212,6 +216,14 @@ def evalC (o : Ops α) (env : Env α) : Cond → Eval Bool
       if ← evalC o env a then return true else evalC o env b
   | .not a => do return !(← evalC o env a)
   | .const b => .ok b
+
+end
+
+/-- Scalar reading of an expression: evaluate to a `Val`, then require a scalar. -/
+def evalS (o : Ops α) (env : Env α) (e : Expr) : Eval α :=
+  match evalV o env e with
+  | .ok v => v.asScalar
+  | .error f => .error f
 
 /-- Parallel phi copies read the original snapshot, not the accumulator. -/
 def mergePhis [Inhabited α] (b : Bool) (phis : List Phi) (env : Env α) : Eval (Env α) :=

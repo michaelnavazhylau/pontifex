@@ -159,7 +159,7 @@ BAD_PROGRAMS = {
     "return_arity": "def f(x: float, y: float):\n    if x > 0:\n        return x\n    return x, y\n",
     "chained_compare": "def f(x: float, y: float):\n    if x < y < 3:\n        x = y\n    return x\n",
     "subscript": "def f(x: float):\n    return x[0]\n",
-    "call": "def f(x: float):\n    return min(x, 2)\n",
+    "call": "def f(x: float):\n    return sum(x, 2)\n",
     "attribute": "def f(x: float):\n    return x.real\n",
     "list_literal": "def f(x: float):\n    return [x]\n",
     "default_arg": "def f(x: float = 1):\n    return x\n",
@@ -176,7 +176,7 @@ BAD_PROGRAMS = {
     "tuple_assign": "def f(x: float):\n    y, z = x, x\n    return y\n",
     "chained_assign": "def f(x: float):\n    y = z = x\n    return y\n",
     "lambda": "def f(x: float):\n    g = lambda y: y\n    return x\n",
-    "ifexp": "def f(x: float, y: float):\n    return x if y > 0 else y\n",
+    "ifexp_scalar_condition": "def f(x: float, y: float):\n    return x if y else y\n",
     "multiple_functions": "def f(x: float):\n    return x\n\ndef g(y: float):\n    return y\n",
     "loop_uninitialised": "def f(x: float):\n    while x < 3:\n        z = 1\n        x = x + z\n    return x\n",
 }

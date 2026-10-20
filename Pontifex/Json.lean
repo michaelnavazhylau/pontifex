@@ -42,6 +42,8 @@ def decodeBinOp (s : String) : Except String BinOp :=
   | "sub" => .ok .sub
   | "mul" => .ok .mul
   | "div" => .ok .div
+  | "min" => .ok .min
+  | "max" => .ok .max
   | other => .error s!"unknown binary operator '{other}'"
 
 def decodeCmpOp (s : String) : Except String CmpOp :=
@@ -89,6 +91,11 @@ partial def decodeExpr (j : Json) : Except String Expr := do
       let l ← decodeExpr lj
       let r ← decodeExpr rj
       return .bin op l r
+  | "select" =>
+      let cj ← j.getObjVal? "c"
+      let tj ← j.getObjVal? "t"
+      let ej ← j.getObjVal? "e"
+      return .select (← decodeCond cj) (← decodeExpr tj) (← decodeExpr ej)
   | "un" =>
       let op ← decodeUnOp (← getStr j "op")
       let ej ← j.getObjVal? "e"

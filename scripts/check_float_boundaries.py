@@ -56,6 +56,11 @@ EDGE_BITS = [
 ]
 
 
+# These operations select/transport existing operands; even NaN payload/sign
+# differences are bugs, not computed-NaN arithmetic exemptions.
+BIT_EXACT_PROGRAMS = frozenset({"identity", "literal", "abs_neg", "min", "max", "select"})
+
+
 def from_bits(bits):
     return struct.unpack(">d", struct.pack(">Q", bits))[0]
 
@@ -89,6 +94,9 @@ def check(samples=100000, arithmetic=4096, exe=None):
         ("sub", "def f(x, y):\n    return x - y\n", pairs),
         ("mul", "def f(x, y):\n    return x * y\n", pairs),
         ("div", "def f(x, y):\n    return x / y\n", pairs),
+        ("min", "def f(x, y):\n    return min(x, y)\n", pairs),
+        ("max", "def f(x, y):\n    return max(x, y)\n", pairs),
+        ("select", "def f(x, y):\n    return x if x < y else y\n", pairs),
         ("power", "def f(x):\n    return x ** 3\n", unary),
         ("power_zero", "def f(x):\n    return x ** 0\n", unary),
         ("abs_neg", "def f(x):\n    return abs(x), -x\n", unary),
@@ -129,7 +137,7 @@ def check(samples=100000, arithmetic=4096, exe=None):
                 if permitted_nan_difference(
                     python,
                     actual,
-                    transport=name in {"identity", "literal", "abs_neg"},
+                    transport=name in BIT_EXACT_PROGRAMS,
                     allow_nan="computed_nan_payload" in rules,
                 ):
                     allowed += 1

@@ -25,7 +25,7 @@ namespace Pontifex
 
 /-- Binary arithmetic operators supported by the core language. -/
 inductive BinOp where
-  | add | sub | mul | div
+  | add | sub | mul | div | min | max
   deriving Repr, DecidableEq, Inhabited
 
 /-- Comparison operators; these produce `Bool`, never a scalar. -/
@@ -53,6 +53,8 @@ inductive Val (α : Type) where
   | array : List α → Val α
   deriving Repr, Inhabited, DecidableEq
 
+mutual
+
 /-- Scalar-typed expressions over slots.
 
     Evaluation is value-typed (`evalV`); scalar contexts unwrap with
@@ -76,6 +78,8 @@ inductive Expr where
   | len : Expr → Expr
   | arrayLit : List Expr → Expr
   | set : Expr → Expr → Expr → Expr
+  /-- Lazy scalar selection: evaluate the condition, then only one branch. -/
+  | select : Cond → Expr → Expr → Expr
   deriving Repr
 
 /-- Boolean-sorted expressions. -/
@@ -86,6 +90,8 @@ inductive Cond where
   | not : Cond → Cond
   | const : Bool → Cond
   deriving Repr
+
+end
 
 /-- A control-flow join: `slot := if cond then env[lhs] else env[rhs]`.
 

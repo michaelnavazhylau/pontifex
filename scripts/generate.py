@@ -42,10 +42,12 @@ EXAMPLES = [
     "early_exit",
     "array_step",
     "call_step",
+    "limited_step",
+    "call_nested",
 ]
 
 # Multi-function modules must select the public entry point explicitly.
-EXAMPLE_FUNCTIONS = {"call_step": "advance"}
+EXAMPLE_FUNCTIONS = {"call_step": "advance", "call_nested": "advance"}
 
 FUEL = 64
 
