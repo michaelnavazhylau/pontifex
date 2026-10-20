@@ -64,6 +64,9 @@ inductive Stmt where
       The program certificate also requires the callee's lowering certificate.
       Lowering expands this node; there is no runtime call or schema change. -/
   | inlineCall : Option Nat → Nat → _root_.Pontifex.Stmt → List Expr → Stmt
+  /-- A call hoisted out of an expression: the result is a synthetic SSA
+      temporary (`v`), never a user variable. -/
+  | inlineTemp : Nat → Nat → _root_.Pontifex.Stmt → List Expr → Stmt
   /-- `if c: thenBody else: elseBody`. -/
   | ite : Cond → List Stmt → List Stmt → Stmt
   /-- `while c: body`. -/

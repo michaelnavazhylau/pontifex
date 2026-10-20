@@ -14,6 +14,8 @@ from pontifex.interp import Failed, OutOfFuel, Returned, run_exact, run_float
 from pontifex.ir import fn_of_json
 from pontifex.pipeline import compare_outcomes, compile_source, load_python_function, observe_python
 from pontifex.source import InlineCall, desugar
+from pontifex.source import Ret as SourceRet
+
 from test_certificates import check_lean
 
 
@@ -175,10 +177,18 @@ def test_source_keeps_callee_reference_not_retranscribed_expansion():
 @pytest.mark.parametrize(
     "body, message",
     [
-        ("x = helper(x) + 1\nreturn x", "complete assignment value or return"),
-        ("return abs(helper(x))", "complete assignment value or return"),
-        ("return helper(helper(x))", "complete assignment value or return"),
-        ("if helper(x) > 0:\n    return 1\nreturn 0", "complete assignment value or return"),
+        ("if helper(x) > 0:\n    return 1\nreturn 0", "inside a condition"),
+        ("while helper(x) > 0:\n    x = x - 1\nreturn x", "inside a condition"),
+        ("if x > 0 and helper(x) != 0:\n    return 1\nreturn 0", "inside a condition"),
+        ("return helper(x) if x > 0 else 0", "conditional expression"),
+        ("return 0 if x > 0 else helper(x)", "conditional expression"),
+        ("return (x / 2) + helper(x)", "may not follow an expression that can fail"),
+        ("return (x ** 2) + helper(x)", "may not follow an expression that can fail"),
+        ("return (1 if x > 0 else 2) + helper(x)", "may not follow an expression that can fail"),
+        (
+            "xs = [x]\nxs[0] = helper(x)\nreturn xs[0] + helper(x)",
+            "may not follow an expression that can fail",
+        ),
         ("return helper(x=x)", "positional arguments"),
         ("return helper(*x)", "positional arguments"),
         ("return helper()", "expects 1 argument"),
@@ -303,4 +313,179 @@ def test_corrupted_call_certificates_fail(mutation, tmp_path):
     assert source != artifact.lean_source
     result = check_lean(tmp_path, source)
     assert result.returncode != 0, "corrupted call unexpectedly passed kernel checking"
+    assert "error:" in result.stdout + result.stderr
+
+
+# ---------------------------------------------------------------------------
+# Nested expression calls (T13 part 2)
+# ---------------------------------------------------------------------------
+
+NESTED = {
+    "operands": """
+        def helper(x, y):
+            return x * 2 + y
+        def f(x, y):
+            return helper(x, y) + helper(y, 1)
+    """,
+    "arguments": """
+        def helper(x, y):
+            return x * 2 + y
+        def f(x, y):
+            return helper(helper(x, y), y)
+    """,
+    "loop_and_array": """
+        def helper(x, y):
+            return x * 2 + y
+        def f(x, y, n):
+            xs = [helper(x, 1), y]
+            while n > 0:
+                x = helper(x, 1)
+                n = n - 1
+            return x, xs[0]
+    """,
+    "return_tuple": """
+        def helper(x, y):
+            return x + y
+        def f(x, y):
+            return helper(x, y), helper(y, x)
+    """,
+    "augassign_and_annotated": """
+        def helper(x, y):
+            return x * y
+        def f(x, y):
+            x += helper(x, y)
+            z: float = helper(y, 2) + x
+            return z
+    """,
+    "array_store_value": """
+        def helper(x, y):
+            return x + y
+        def f(x, y):
+            xs = [x, y]
+            xs[0] = helper(y, 2)
+            return xs[0]
+    """,
+}
+
+
+@pytest.mark.parametrize("name", NESTED)
+def test_nested_calls_match_python(name):
+    source = textwrap.dedent(NESTED[name])
+    translated = translate(source, function="f")
+    original = load_python_function(source, "f")
+    decoded = fn_of_json(translated.fn.to_json())
+    for args in (
+        [Fraction(2), Fraction(3)],
+        [Fraction(-1), Fraction(2)],
+        [Fraction(0), Fraction(4)],
+    ):
+        args = args[: translated.fn.arity]
+        if translated.fn.arity == 3:
+            args = args + [Fraction(2)]
+        for values, run in ((args, run_exact), ([float(a) for a in args], run_float)):
+            expected = observe_python(original, values)
+            actual = run(translated.fn, values, fuel=256)
+            assert compare_outcomes(expected, actual) is None, (name, values)
+            assert compare_outcomes(actual, run(decoded, values, fuel=256)) is None
+
+
+def test_nested_calls_preserve_left_to_right_fault_order():
+    source = """
+def helper(x, y):
+    return x + y
+
+def f():
+    xs = []
+    return helper(1 / 0, xs[1])
+"""
+    translated = translate(source, function="f")
+    assert run_exact(translated.fn, []) == Failed("divisionByZero")
+    assert observe_python(load_python_function(source, "f"), []) == Failed("divisionByZero")
+
+    source = """
+def helper(x, y):
+    return x + y
+
+def f():
+    xs = []
+    y = helper(xs[1], 1 / 0)
+    return y
+"""
+    translated = translate(source, function="f")
+    assert run_exact(translated.fn, []) == Failed("indexOutOfBounds")
+
+
+def test_call_inside_loop_is_reevaluated_each_iteration():
+    source = """
+def step(x, n):
+    return x + n
+
+def f(n):
+    total = 0
+    while n > 0:
+        total = total + step(n, 1)
+        n = n - 1
+    return total
+"""
+    translated = translate(source, function="f")
+    original = load_python_function(source, "f")
+    for n in (0, 1, 3, 5):
+        expected = observe_python(original, [n])
+        assert compare_outcomes(expected, run_exact(translated.fn, [Fraction(n)])) is None
+
+
+def test_hoisted_call_is_a_temporary_not_a_user_variable():
+    translated = translate(textwrap.dedent(NESTED["operands"]), function="f")
+    source = desugar(translated)
+    kinds = [type(statement).__name__ for statement in source.body]
+    assert kinds[:2] == ["InlineTemp", "InlineTemp"]
+    assert isinstance(source.body[2], SourceRet)
+    assert all(0 <= statement.target < 10 for statement in source.body[:2])
+    # Assignment-position calls keep binding the user variable.
+    binding = translate(
+        "def helper(x):\n    return x + 1\ndef f(x):\n    z = helper(x)\n    return z\n",
+        function="f",
+    )
+    assert isinstance(desugar(binding).body[0], InlineCall)
+    # The hoisted temporary never becomes an IR call node or JSON shape.
+    assert "inline" not in translated.fn.to_json_text()
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("name", NESTED)
+def test_nested_call_certificates_are_kernel_checked(name, tmp_path):
+    artifact = compile_source(textwrap.dedent(NESTED[name]), function="f", namespace="Nested")
+    source = artifact.lean_source
+    assert ".inlineTemp" in source
+    assert "sorry" not in source
+    source += "\n#print axioms Nested.f_program_lowering\n#print axioms Nested.f_link\n"
+    result = check_lean(tmp_path, source)
+    assert result.returncode == 0, result.stdout + result.stderr
+    axioms = re.findall(r"depends on axioms: \[([^\]]*)\]", result.stdout)
+    assert len(axioms) == 2, result.stdout
+    for names in axioms:
+        assert set(names.split(", ")) <= {"propext", "Classical.choice", "Quot.sound"}
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("mutation", ["argument_order", "temp_slot", "callee_body"])
+def test_corrupted_nested_call_certificates_fail(mutation, tmp_path):
+    artifact = compile_source(
+        textwrap.dedent(NESTED["arguments"]), function="f", namespace="Nested"
+    )
+    source = artifact.lean_source
+    if mutation == "argument_order":
+        corrupted = source.replace("[(.var 2), (.var 1)]", "[(.var 1), (.var 2)]", 1)
+    elif mutation == "temp_slot":
+        corrupted = re.sub(
+            r"\(\.inlineTemp (\d+)",
+            lambda m: f"(.inlineTemp {int(m.group(1)) + 1}",
+            source,
+            count=1,
+        )
+    else:
+        corrupted = source.replace("(.bin .mul", "(.bin .add", 1)
+    assert corrupted != source
+    result = check_lean(tmp_path, corrupted)
+    assert result.returncode != 0, "corrupted nested call passed kernel checking"
     assert "error:" in result.stdout + result.stderr

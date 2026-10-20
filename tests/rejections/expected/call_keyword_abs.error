@@ -1,2 +1,2 @@
 UnsupportedError
-tests/rejections/cases/call_keyword_abs.py:2:12: unsupported call: use abs(x), len(xs), min(a, b), max(a, b), or a module-local helper as a complete assignment value or return; imports and external calls are not supported
+tests/rejections/cases/call_keyword_abs.py:2:12: unsupported call: use abs(x), len(xs), min(a, b), max(a, b), or a module-local helper; imports and external calls are not supported

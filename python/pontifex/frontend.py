@@ -218,6 +218,16 @@ class _Lowerer:
         self.function_names = function_names
         self.local_names = local_names
         self.callees: dict[str, Translated] = {}
+        #: Statements hoisted out of the statement currently being lowered.  A
+        #: nested call becomes a fresh-slot assignment in evaluation order.
+        self.hoisted: list[Stmt] = []
+        #: True once the current expression prefix could fail.  Hoisting a call
+        #: past it would reorder faults, so such calls are rejected instead.
+        self.pending_fault = False
+        #: Inside a condition, calls cannot be hoisted: conditions short-circuit
+        #: and loop conditions are re-evaluated.
+        self.in_cond = 0
+        self.call_counter = 0
         self.filename = filename
         self.fn_name = fn_name
         self.slot_names: list[str] = list(params)
@@ -282,7 +292,10 @@ class _Lowerer:
             op = BINOP_NAMES.get(type(node.op))
             if op is None:
                 raise self.err(node, f"binary operator '{type(node.op).__name__}' is not supported")
-            return Bin(op, self.expr(node.left), self.expr(node.right))
+            value = Bin(op, self.expr(node.left), self.expr(node.right))
+            if op == "div":
+                self.pending_fault = True
+            return value
         if isinstance(node, ast.UnaryOp):
             if isinstance(node.op, ast.USub):
                 return Un("neg", self.expr(node.operand))
@@ -296,11 +309,7 @@ class _Lowerer:
                         node, f"callable '{node.func.id}' is shadowed by a local variable"
                     )
                 if node.func.id in self.function_names:
-                    raise self.err(
-                        node,
-                        "user calls are supported only as a complete assignment value or return; "
-                        "calls nested in expressions, conditions or arguments are deferred",
-                    )
+                    return self.call_expr(node)
             if isinstance(node.func, ast.Name) and node.func.id in {"min", "max"}:
                 if (
                     len(node.args) != 2
@@ -329,8 +338,8 @@ class _Lowerer:
                 return Len(self.array_expr(node.args[0]))
             raise self.err(
                 node,
-                "unsupported call: use abs(x), len(xs), min(a, b), max(a, b), or a module-local helper "
-                "as a complete assignment value or return; imports and external calls are not supported",
+                "unsupported call: use abs(x), len(xs), min(a, b), max(a, b), or a module-local helper; "
+                "imports and external calls are not supported",
             )
         if isinstance(node, ast.Attribute):
             raise self.err(
@@ -341,7 +350,9 @@ class _Lowerer:
         if isinstance(node, ast.Subscript):
             if isinstance(node.slice, ast.Slice):
                 raise self.err(node, "slices are not supported")
-            return Index(self.array_expr(node.value), self.expr(node.slice))
+            value = Index(self.array_expr(node.value), self.expr(node.slice))
+            self.pending_fault = True
+            return value
         if isinstance(node, ast.List):
             raise self.err(
                 node,
@@ -355,7 +366,16 @@ class _Lowerer:
                 "(return a flat tuple of scalars instead)",
             )
         if isinstance(node, ast.IfExp):
-            return Select(self.cond(node.test), self.expr(node.body), self.expr(node.orelse))
+            for branch in (node.body, node.orelse):
+                if self.contains_user_call(branch):
+                    raise self.err(
+                        branch,
+                        "calls inside a conditional expression are deferred: neither branch may be "
+                        "evaluated eagerly, so bind the call to a variable first",
+                    )
+            value = Select(self.cond(node.test), self.expr(node.body), self.expr(node.orelse))
+            self.pending_fault = True
+            return value
         if isinstance(node, ast.Compare):
             raise self.err(node, "comparison produces a boolean and cannot be used as a scalar")
         if isinstance(node, ast.BoolOp):
@@ -378,11 +398,22 @@ class _Lowerer:
                 "(non-integer powers would require a transcendental function)",
             )
         base = self.expr(node.left)
+        self.pending_fault = True
         return Pow(base, n)
 
     # -- conditions --------------------------------------------------------
 
     def cond(self, node: ast.expr) -> Cond:
+        # Conditions are evaluated lazily (`and`/`or` short-circuit) and a loop
+        # condition runs once per iteration, so a call can neither be hoisted
+        # nor duplicated here.
+        self.in_cond += 1
+        try:
+            return self.cond_(node)
+        finally:
+            self.in_cond -= 1
+
+    def cond_(self, node: ast.expr) -> Cond:
         if isinstance(node, ast.Compare):
             if len(node.ops) != 1 or len(node.comparators) != 1:
                 raise self.err(node, "chained comparisons are not supported")
@@ -452,6 +483,10 @@ class _Lowerer:
                     node,
                     "unreachable statement: the preceding statement always returns",
                 )
+            # Evaluation order is per statement: hoisted calls go immediately
+            # before the statement that used them.
+            self.pending_fault = False
+            assert not self.hoisted
             if isinstance(node, ast.Return):
                 if self.is_user_call(node.value):
                     if self.result_arity not in (None, 1):
@@ -460,11 +495,15 @@ class _Lowerer:
                             "inlined calls return one scalar, but an earlier return has a different arity",
                         )
                     self.result_arity = 1
-                    out.append(self.call(node.value, None))
+                    statement = self.call(node.value, None)
                 else:
-                    out.append(Ret(self.returns(node)))
+                    statement = Ret(self.returns(node))
             else:
-                out.append(self.stmt(node))
+                statement = self.stmt(node)
+            # Hoisted calls were evaluated before this statement.
+            out.extend(self.hoisted)
+            self.hoisted.clear()
+            out.append(statement)
         return Seq(tuple(out))
 
     def returns(self, node: ast.Return) -> tuple[Expr, ...]:
@@ -493,9 +532,50 @@ class _Lowerer:
             and node.func.id in self.function_names
         )
 
-    def call(self, node: ast.Call, target: str | None) -> Stmt:
-        from .inline import inline_body
+    def contains_user_call(self, node: ast.AST | None) -> bool:
+        """Would lowering this expression subtree emit a helper call?"""
+        if node is None:
+            return False
+        return any(
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Name)
+            and child.func.id in self.function_names
+            and child.func.id not in self.local_names
+            for child in ast.walk(node)
+        )
 
+    def call_expr(self, node: ast.Call) -> Expr:
+        """Hoist a helper call out of an expression, in evaluation order.
+
+        The call becomes a fresh-slot assignment emitted immediately before the
+        enclosing statement.  This is only sound when nothing evaluated earlier
+        in that statement could still fail: otherwise the call would run before
+        a fault Python would have raised first.
+        """
+        if self.in_cond:
+            raise self.err(
+                node,
+                f"call to '{node.func.id}' inside a condition is not supported: conditions "
+                "short-circuit and loop conditions are re-evaluated, so the call cannot be "
+                "hoisted; assign its result to a variable first",
+            )
+        if self.pending_fault:
+            raise self.err(
+                node,
+                f"call to '{node.func.id}' may not follow an expression that can fail "
+                "(division, power, indexing, array update or conditional selection); "
+                "assign that value to a variable first so failures keep Python's order",
+            )
+        # The call itself is the next evaluation, so its arguments start fresh.
+        self.pending_fault = False
+        stmt, slot = self.call_assign(node, f"{node.func.id}#call{self.call_counter}")
+        self.call_counter += 1
+        self.hoisted.append(stmt)
+        self.pending_fault = False
+        return Slot(slot)
+
+    def call_target(self, node: ast.Call) -> Translated:
+        """Validate call shape and return the resolved callee."""
         if node.func.id in self.local_names:
             raise self.err(node, f"callable '{node.func.id}' is shadowed by a local variable")
         if node.keywords or any(isinstance(a, ast.Starred) for a in node.args):
@@ -506,16 +586,35 @@ class _Lowerer:
         if len(node.args) != callee.fn.arity:
             raise self.err(
                 node,
-                f"call to '{callee.fn.name}' expects {callee.fn.arity} argument(s), got {len(node.args)}",
+                f"call to '{callee.fn.name}' expects {callee.fn.arity} argument(s), "
+                f"got {len(node.args)}",
             )
+        return callee
+
+    def call_assign(self, node: ast.Call, target: str) -> tuple[Stmt, int]:
+        """Expand a call into a statement binding its scalar result to `target`."""
+        from .inline import inline_body
+
+        callee = self.call_target(node)
         args = tuple(self.expr(arg) for arg in node.args)
         self.callees[callee.fn.name] = callee
         result, slot = inline_body(callee.fn, args, self.fresh, target)
+        assert slot is not None
+        return result, slot
+
+    def call(self, node: ast.Call, target: str | None) -> Stmt:
         if target is not None:
-            assert slot is not None
+            result, slot = self.call_assign(node, target)
             self.env[target] = slot
             self.kinds[target] = SCALAR
-        return result
+            return result
+        # Tail call: keep the callee's `return`, so it exits the caller.
+        from .inline import inline_body
+
+        callee = self.call_target(node)
+        args = tuple(self.expr(arg) for arg in node.args)
+        self.callees[callee.fn.name] = callee
+        return inline_body(callee.fn, args, self.fresh, None)[0]
 
     def bind(self, name: str, value_node: ast.expr) -> Stmt:
         if self.is_user_call(value_node):
@@ -542,12 +641,15 @@ class _Lowerer:
         if isinstance(target.slice, ast.Slice):
             raise self.err(target, "slice assignment is not supported")
         name = target.value.id
+        # `xs[i] = v` evaluates v first, then the array, then the index; hoisted
+        # calls must follow the same order.
+        stored = self.expr(value_node)
         array = self.array_expr(target.value)
         index = self.expr(target.slice)
-        stored = self.expr(value_node)
         slot = self.fresh(name)
         self.env[name] = slot
         self.kinds[name] = ARRAY
+        self.pending_fault = True
         return Assign(slot, Set(array, index, stored))
 
     def stmt(self, node: ast.stmt) -> Stmt:

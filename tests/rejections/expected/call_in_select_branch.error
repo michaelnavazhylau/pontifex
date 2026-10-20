@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/call_in_select_branch.py:6:12: calls inside a conditional expression are deferred: neither branch may be evaluated eagerly, so bind the call to a variable first

@@ -1,2 +1,0 @@
-UnsupportedError
-tests/rejections/cases/user_call_nested.py:6:12: user calls are supported only as a complete assignment value or return; calls nested in expressions, conditions or arguments are deferred

@@ -113,6 +113,7 @@ mutual
 def assignedStmt : Stmt → List Nat
   | .assign v _ => [v]
   | .inlineCall target _ _ _ => target.toList
+  | .inlineTemp _ _ _ _ => []
   | .ite _ t e => assignedNames t ++ assignedNames e
   | .whil _ b => assignedNames b
   | .ret _ => []
@@ -152,13 +153,34 @@ def lookupEnv (env : List (Nat × Nat)) (v : Nat) : Option Nat :=
 def envNames (env : List (Nat × Nat)) : List Nat :=
   (sortNats (env.map (fun p => p.1))).eraseDups
 
+mutual
+
+/-- Ids bound by an inline-call result inside these statements.
+
+    These are synthetic SSA temporaries created by hoisting a call out of an
+    expression.  They exist on one control-flow path only, so merges and
+    loop-carried analysis must ignore them (the frontend never names them).
+    Kept local to each construct so no extra lowering state is threaded. -/
+def inlineTargetsStmt : Stmt → List Nat
+  | .inlineTemp v _ _ _ => [v]
+  | .ite _ t e => inlineTargets t ++ inlineTargets e
+  | .whil _ b => inlineTargets b
+  | _ => []
+
+def inlineTargets : List Stmt → List Nat
+  | [] => []
+  | s :: rest => inlineTargetsStmt s ++ inlineTargets rest
+
+end
+
 /-- Source variables whose binding differs between two environments.
 
     This is the merge set used by `if`: only a name the falling-through path(s)
     actually rebound needs a phi.  A branch that always returns never reaches
     the merge, so it contributes no input. -/
-def differentNames (a b : List (Nat × Nat)) : List Nat :=
-  (envNames (a ++ b)).filter fun v => lookupEnv a v != lookupEnv b v
+def differentNames (temps : List Nat) (a b : List (Nat × Nat)) : List Nat :=
+  (envNames (a ++ b)).filter fun v =>
+    !temps.contains v && lookupEnv a v != lookupEnv b v
 
 mutual
 
@@ -200,6 +222,12 @@ def lowerStmt (st : LowerState) : Stmt →
       let e' ← lowerExpr st e
       let (slot, st') := st.bindFresh v
       return (.assign slot e', st')
+  | .inlineTemp v arity body args => do
+      let slots := Inline.frameSize arity body
+      let resultSlot := st.next + slots
+      let args' ← lowerExprs st args
+      let body' ← Inline.expand st.next arity (some resultSlot) body args'
+      return (body', { st with env := (v, resultSlot) :: st.env, next := resultSlot + 1 })
   | .inlineCall target arity body args => do
       let slots := Inline.frameSize arity body
       let args' ← lowerExprs st args
@@ -229,12 +257,14 @@ def lowerStmt (st : LowerState) : Stmt →
               (fun (stmts, st') => ((.seq stmts : _root_.Pontifex.Stmt), st'))
       let thenReturns := blockReturns t
       let elseReturns := blockReturns e
+      -- Hoisted call results are branch-local SSA temporaries, not user names.
+      let temps := inlineTargets (t ++ e)
       -- Only names rebound by a path that can still fall through need a phi.
       let merged :=
         if thenReturns && elseReturns then []
-        else if thenReturns then differentNames st.env stElse.env
-        else if elseReturns then differentNames stThen.env st.env
-        else differentNames stThen.env stElse.env
+        else if thenReturns then differentNames temps st.env stElse.env
+        else if elseReturns then differentNames temps stThen.env st.env
+        else differentNames temps stThen.env stElse.env
       let (phis, env, next) ←
         merged.foldlM
           (fun (acc : List _root_.Pontifex.Phi × List (Nat × Nat) × Nat) v => do
@@ -263,7 +293,9 @@ def lowerStmt (st : LowerState) : Stmt →
       return (.ite c' (.seq thenStmts) elseStmt phis,
         { env := env, next := next })
   | .whil c body => do
-      let bodyNames := assignedSorted body
+      -- Hoisted call results are SSA temporaries, never loop-carried variables.
+      let temps := inlineTargets body
+      let bodyNames := (assignedSorted body).filter fun v => !temps.contains v
       -- A loop-carried variable must already have a value.  Variables first
       -- assigned inside the body are checked after lowering: an assignment on
       -- a path that returns never reaches the back edge.
@@ -300,7 +332,8 @@ end
     would force the kernel to evaluate string operations. -/
 def lowerBody (f : Fn) : Except String _root_.Pontifex.Stmt := do
   let st : LowerState :=
-    { env := f.paramIds.zipIdx.map (fun (v, i) => (v, i)), next := f.paramIds.length }
+    { env := f.paramIds.zipIdx.map (fun (v, i) => (v, i)), next := f.paramIds.length
+      }
   let (body, _) ← lowerBlock st f.body
   return .seq body
 

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/call_in_while_condition.py:6:11: call to 'helper' inside a condition is not supported: conditions short-circuit and loop conditions are re-evaluated, so the call cannot be hoisted; assign its result to a variable first
