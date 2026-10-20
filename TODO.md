@@ -27,8 +27,8 @@ Sizes: **S** ≤ 1 day, **M** 2–4 days, **L** > 1 week.
 ## P0 — trust plumbing and test corpus — ✅ complete
 
 Implemented in this repository: schema/config stamping with `#guard`, build-time
-axiom auditing of every certificate, 86 committed rejection snapshots, and a
-31-program triple-differential corpus (both corpora have grown since P0 closed;
+axiom auditing of every certificate, 91 committed rejection snapshots, and a
+32-program triple-differential corpus (both corpora have grown since P0 closed;
 see the current counts in [README](README.md#validation)).
 
 ### ✅ T1. Stamp the artifact configuration and guard it — **S**, low risk
@@ -323,10 +323,31 @@ includes transitive helpers, control-flow callers, private locals, eager faults,
 JSON round trips, kernel mutation rejection, three call corpus programs, and
 located rejection snapshots.
 
+**Second slice implemented:** calls may now appear inside scalar expressions —
+operands of arithmetic/`min`/`max`/`abs`/`**`, array elements and indices, the
+value of `xs[i] = v`, augmented-assignment right-hand sides, call arguments, and
+return-tuple elements. Each nested call is hoisted, in Python evaluation order,
+into a fresh-slot assignment before the enclosing statement. The core source AST
+marks it `inlineTemp`, so the result is an SSA temporary that never enters `if`
+merges or loop-carried analysis; the reference lowering binds it locally instead
+of threading extra state. Calls remain rejected inside conditions and
+conditional-expression branches (short-circuit / re-evaluation), and a call may
+not follow a failing operand in the same statement, because hoisting would
+reorder the reported failure.
+
 **Still open (T13 is not complete):** callee branches/loops/early returns,
-calls nested in expressions/conditions/arguments, tuple results/unpacking,
-keyword/starred/ignored-result calls, array arguments/results/locals in helpers,
-and calls with summaries. Recursion and external calls remain unsupported.
+calls inside conditions and conditional-expression branches, tuple
+results/unpacking, keyword/starred/ignored-result calls, array
+arguments/results/locals in helpers, and calls with summaries. Recursion and
+external calls remain unsupported.
+
+**Known scalability limit (deferred, tracked in
+[#21](https://github.com/michaelnavazhylau/pontifex/issues/21)):** the `rfl`
+lowering certificate is roughly exponential in the length of a single statement block
+(~0.7 s at 8 statements, ~3.4 s at 10, over the default heartbeat budget at 11;
+these numbers predate this work). Inlining adds statements, so call-heavy
+functions reach the limit sooner. Fixing the certificate's reduction cost is a
+follow-up, not a call-semantics issue.
 
 ### T14. Opacity lattice and verified-path assertion — **M**
 
@@ -408,7 +429,9 @@ subsumed by the tower or explicitly documented as the remaining exception.
    conditional expressions. **T14** (opacity) can follow calls. **T15b** should
    be a design spike before any further numeric growth.
 6. **Tooling, independent of P3:** [#16](https://github.com/michaelnavazhylau/pontifex/issues/16)
-   `pontifex check` capability preflight. It makes the subset boundary explicit
+   `pontifex check` capability preflight, and
+   [#21](https://github.com/michaelnavazhylau/pontifex/issues/21) lowering-certificate
+   reduction cost. It makes the subset boundary explicit
    and is a natural home for reporting T12's array restrictions.
 
 ## Explicit non-goals (for now)

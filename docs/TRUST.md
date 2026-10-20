@@ -138,9 +138,16 @@ at complete assignment/return sites, with positional scalar arguments. It
 preserves eager left-to-right evaluation in a private fresh-slot frame; unused
 arguments and potentially failing dead callee assignments are retained. Caller
 branches, loops, early returns, and arrays still use their existing paths.
-Forward definitions and acyclic helper chains are supported, but recursive,
-nested-expression, summary/opaque, array, tuple-result, and control-flow-callee
-calls are deferred. See [CALLS.md](CALLS.md) for the precise subset.
+Forward definitions and acyclic helper chains are supported, as are calls inside
+scalar expressions (operands, arguments, array elements/indices, store values,
+return tuples). A nested call is hoisted into a fresh-slot assignment before the
+enclosing statement, in evaluation order; because a hoisted call would otherwise
+run before an earlier failing operand, or the wrong number of times in a
+condition, those two placements are rejected. Hoisted results are `inlineTemp`
+SSA temporaries and never participate in merges or loop-carried headers.
+Recursive, condition-position, summary/opaque, array, tuple-result, and
+control-flow-callee calls are deferred. See [CALLS.md](CALLS.md) for the precise
+subset and its practical size limit.
 
 Core Source `inlineCall` references independently emitted callee IR. Lean's
 `Inline.expand` checks the expansion via the caller's `rfl` lowering fact;

@@ -1,0 +1,2 @@
+UnsupportedError
+tests/rejections/cases/call_after_faulting_expression.py:6:22: call to 'helper' may not follow an expression that can fail (division, power, indexing, array update or conditional selection); assign that value to a variable first so failures keep Python's order
