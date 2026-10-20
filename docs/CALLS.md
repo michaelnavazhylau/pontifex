@@ -110,17 +110,21 @@ per-function/program lowering and code-linkage certificates are axiom-audited.
 The existing `_link` / `_compiled_link` then check the independently emitted
 executable against the expanded IR; no codegen/interpreter changes are needed.
 
-### Practical size limit
+### Certificate cost
 
-Every inlined call adds several IR statements, and the `rfl` lowering
-certificate currently costs roughly twice as much kernel work per additional
-statement in a block. Small functions (one or two call sites) check in well under
-a second; longer ones can exhaust Lean's default heartbeat budget. This is a
-pre-existing property of the reference-lowering certificate rather than of
-inlining, and it is tracked as
-[#21](https://github.com/michaelnavazhylau/pontifex/issues/21); keeping a
-function's statement count modest (or binding intermediate results) keeps
-certificates fast.
+Every inlined call adds IR statements, and every generated statement passes
+through the `rfl` reference-lowering certificate. That certificate used to cost
+roughly twice as much kernel work per additional statement, so long blocks and
+call-heavy functions could exhaust Lean's default heartbeat budget. Since
+[#21](https://github.com/michaelnavazhylau/pontifex/issues/21), `Source.lowerRec`
+applies the plain mutual recursor directly instead of the equation compiler's
+`brecOn` form, whose auxiliary "below" structure duplicated the recursive
+result at every level. Reduction is now linear in the block length: the
+lowering of a 60-statement straight-line body checks in about 0.3 s, and a
+complete 50-statement generated artifact (including executable linkage) in
+about 2 s. A regression test kernel-checks a 30-statement body. Very large
+expanded programs still cost more in the separate `_link` proof over the whole
+IR, but the lowering no longer contributes an exponential factor.
 
 As before, these are per-program agreement checks, **not a semantic-preservation
 proof of Python desugaring or inlining**. The inliner's fidelity and the Python

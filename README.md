@@ -221,8 +221,9 @@ tested, and are documented in [`docs/TRUST.md`](docs/TRUST.md):
 * `ast.parse`, subset checking, surface desugaring, and transcription of the AST
   into the emitted `Source` literal;
 * fidelity of the Lean reference lowering to Python semantics (the lowering is a
-  formal executable specification; `<fn>_lowering` proves agreement with it, not
-  semantic preservation for all Python programs);
+  formal reference specification and is proof-only/`noncomputable`; a 30-statement
+  `rfl` certificate now checks in about a second, and `<fn>_lowering` proves
+  agreement with it, not semantic preservation for all Python programs);
 * native `Float`/CPU arithmetic and `Float.ofBits`/`toBits` behavior — exercised
   bit-for-bit by the boundary corpus, not proved correct;
 * Python's full numeric tower, evaluation-order effects outside the modeled
@@ -309,7 +310,7 @@ expressions, scalar truthiness, or tuple unpacking.
 ## Validation
 
 ```text
-588 tests (frontend, interpreter, Lean proofs, corpora)
+589 tests (frontend, interpreter, Lean proofs, corpora)
 32-program differential corpus · CPython / exact IR / binary64 IR / Lean oracle
 91 rejected programs with committed diagnostics
 100,000 random binary64 patterns + IEEE edge cases → 296,700 comparisons,
