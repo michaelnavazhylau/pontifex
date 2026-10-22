@@ -22,7 +22,7 @@ from pontifex.pipeline import (
     load_python_function,
 )
 from conftest import ROOT
-from test_certificates import check_lean
+from lean_helpers import check_lean
 
 
 def from_bits(bits):

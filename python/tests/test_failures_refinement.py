@@ -11,7 +11,7 @@ from pontifex.frontend import translate
 from pontifex.interp import Failed, Stuck, OutOfFuel, Returned, run_exact, run_float
 from pontifex.ir import Fn, Ret, Slot, Ite, Seq, Where, Phi, Assign, Lit
 from pontifex.pipeline import compare_outcomes, run_lean, compile_source
-from test_certificates import check_lean
+from lean_helpers import check_lean
 
 CASES = [
     ("def f(x, y):\n    return x / y\n", [1, 0], Failed("divisionByZero")),

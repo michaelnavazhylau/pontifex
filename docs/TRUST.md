@@ -232,15 +232,59 @@ not evidence of divergence. Partial correctness does not prove termination.
 | --- | --- |
 | Schema drift | stamped config, Lean `#guard`, generator Python/Lean cross-check, JSON decoder version check |
 | Axiom leakage | generated `Audit.lean` audits all lowering/linkage certificates and P1 core/example theorems |
-| Stale artifacts | `generate.py --check` compares Lean, JSON, and audit manifest |
+| Stale artifacts | `generate.py --check` compares Lean, JSON, audit manifest, and native-test module |
+| Native-test isolation | source scan rejects `native_decide` or imports of `NativeTests` outside the dedicated test module |
 | Rejection drift | committed class/message/location snapshots and `update_rejections.py --check` |
 | Corpus drift | fixed-seed CPython↔IR↔Lean comparisons, including explicit failures |
 | Float regressions | 100,000-pattern boundary corpus, bit-exact comparisons and counted computed-NaN exemptions |
 
 The audit allows only Lean's `propext`, `Classical.choice`, and `Quot.sound`.
 It rejects `sorryAx`, native-evaluation trust hooks, and project-specific axioms.
-Optional `*_sample_*` theorems and the harmonic energy grid use `native_decide`;
-those are finite build-time tests, not universal correctness certificates.
+### Native samples are not certificate dependencies (issue #14)
+
+Every checked-in use of `native_decide` is confined to generated
+`NativeTests.lean`. `lake build PontifexNativeTests` (or `make native-tests`)
+builds this explicitly named **finite test** target. It is not a default target,
+and neither the `Pontifex` library nor its certificates import it. CI and
+`make check` run it separately; kernel replay explicitly selects `Pontifex`.
+`*_sample_*` names alone no longer grant an exception in certificate files.
+
+The repository-wide Lean source scan ignores comments/string literals and
+build/toolchain caches, rejects misplaced native tactics and imports of the
+native test module, and has mutation-style regressions for both. This source
+policy is an accident/regression gate, not a general proof-language security
+sandbox; the axiom audit still rejects native trust dependencies in actual
+certificates, even if introduced without spelling the tactic name.
+
+The harmonic energy grid no longer uses native evaluation:
+`modifiedEnergyGridOk_eq_true` is a kernel corollary of
+`symplecticStep_modifiedEnergy` and is now included in the axiom audit. This does
+not turn native sample checks into proofs of general Python or Float behavior.
+
+CLI `compile --with-samples` writes a separate standalone `<stem>.samples.lean`
+test input, not native proofs in the certificate output. It embeds the translation
+for arbitrary output locations; keep these scratch files outside checked-in
+sources. Library clients requesting `conformance` receive those finite checks
+in `Artifacts.native_samples_source`; `lean_source` remains certificate-only.
+The low-level `emit_module` no longer accepts `conformance`; use
+`emit_native_samples` only in a separate test module.
+
+## Agent workflow safeguards (not additional proofs)
+
+The project-local Pi integration and standalone `scripts/pontifex_workflow.py`
+reuse existing verification gates; they add no axioms or compiler guarantees.
+`make check` now checks freshness without first regenerating artifacts. Explicit
+regeneration is a separate action. `make fmt` only formats, while `make lint`
+reports lint failures without suppression.
+
+The workflow runner builds before integration tests, records skipped/missing
+coverage as incomplete, preserves full logs, and invalidates stored evidence on
+source/toolchain/environment fingerprint changes. Only a passing full profile
+can report full local project verification; this does not cover CI's Python
+version matrix, nightly sample volume, separate lint, or Pi runtime loading.
+Generated-file guards prevent common direct-edit accidents but are not a sandbox:
+shell/custom tools can bypass them. Source/evaluator independence is unchanged.
+See [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) for scope and limitations.
 
 ## Status
 
@@ -284,7 +328,7 @@ those are finite build-time tests, not universal correctness certificates.
 ## Reproduce
 
 ```bash
-make check                 # freshness, audit, corpora, tests
+make check                 # freshness, audit, separate native samples, corpora, tests
 make float-boundaries      # full 100,000-pattern Float run
 ```
 

@@ -63,8 +63,10 @@ rejected even in a dead branch.
 
 These constructs may nest in arithmetic, conditions, array elements/stores,
 return tuples, and scalar arguments to supported helpers. Straight-line scalar
-helper bodies may also use them; statement-level callee control flow and nested
-**user-helper** calls remain deferred under T13.
+helper bodies may also use them. Nested user-helper calls in supported scalar
+expression positions now work under T13; calls in conditions or conditional
+branches and statement-level callee control flow remain deferred. See
+[CALLS.md](CALLS.md) for evaluation-order restrictions.
 
 ## IR, certificates, and migration
 

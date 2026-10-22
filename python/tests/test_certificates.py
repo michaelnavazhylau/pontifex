@@ -7,13 +7,13 @@ checked-in physics examples. No sample/native_decide proofs are requested.
 from __future__ import annotations
 
 import re
-import subprocess
 import textwrap
 
 import pytest
 
 from pontifex.pipeline import compile_source
-from conftest import ROOT, example_source
+from conftest import example_source
+from lean_helpers import check_lean
 
 
 def _long_straight_line(statements: int = 30) -> str:
@@ -163,18 +163,6 @@ PROGRAMS = {
             return x
     """,
 }
-
-
-def check_lean(tmp_path, source: str):
-    path = tmp_path / "Certificate.lean"
-    path.write_text(source)
-    return subprocess.run(
-        ["lake", "env", "lean", str(path)],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        timeout=90,
-    )
 
 
 @pytest.mark.slow

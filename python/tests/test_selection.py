@@ -37,7 +37,7 @@ from pontifex.pipeline import (
 )
 from pontifex.source import Select as SourceSelect, desugar
 from pontifex.version import IR_VERSION
-from test_certificates import check_lean
+from lean_helpers import check_lean
 
 
 PROGRAMS = {

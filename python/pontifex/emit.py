@@ -10,22 +10,16 @@ Emitted per function:
 * ``<fn>_link`` -- kernel-checked code-versus-IR linkage. Straight-line code is
   checked by ``rfl`` at the selected fuel. Control-flow blocks are certified for
   ALL fuels and arbitrary numeric backends (including Rat and Float).
-* Optional ``native_decide`` samples -- build-time tests only, not the basis of
-  the linkage proofs.
+Native conformance checks are emitted separately by ``emit_native_samples``;
+they must never be appended to a certificate module.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from fractions import Fraction
-from typing import Sequence
 
 from .frontend import Translated
-from .version import (
-    FUEL_POLICY_ALL_FUEL,
-    FUEL_POLICY_LITERAL,
-    IR_VERSION,
-    NUMERIC_MODE_EXACT_RAT,
-)
 from .ir import (
     And,
     ArrayLit,
@@ -44,8 +38,8 @@ from .ir import (
     Phi,
     Pow,
     Ret,
-    Seq,
     Select,
+    Seq,
     Set,
     Skip,
     Slot,
@@ -54,6 +48,12 @@ from .ir import (
     Where,
     While,
     stmts,
+)
+from .version import (
+    FUEL_POLICY_ALL_FUEL,
+    FUEL_POLICY_LITERAL,
+    IR_VERSION,
+    NUMERIC_MODE_EXACT_RAT,
 )
 
 OP_SYMBOLS = {"add": "+", "sub": "-", "mul": "*", "div": "/"}
@@ -343,7 +343,6 @@ def emit_module(
     *,
     namespace: str,
     fuel: int = 64,
-    conformance: Sequence[tuple[Sequence[Fraction], Sequence[Fraction]]] = (),
     generator: str = "python -m pontifex compile",
 ) -> str:
     fn = translated.fn
@@ -423,16 +422,32 @@ def emit_module(
         from .certify import emit_certified
 
         lines.append(emit_certified(fn))
+    lines.append(f"end {namespace}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def emit_native_samples(
+    fn: Fn,
+    *,
+    namespace: str,
+    fuel: int = 64,
+    conformance: Sequence[tuple[Sequence[Fraction], Sequence[Fraction]]] = (),
+) -> str:
+    """Test declarations only: import the certificate in a separate test module.
+
+    Native evaluation trusts Lean's compiler. These finite checks are not
+    correctness certificates and must not become dependencies of audited code.
+    """
+    lines = [f"namespace {namespace}", ""]
     for index, (args, expected) in enumerate(conformance):
         arglist = " ".join(rat_literal(Fraction(a)) for a in args)
         values = tuple_term([rat_literal(Fraction(v)) for v in expected], len(expected))
-        lines.append("/-- Sample conformance check on exact rational inputs. -/")
+        lines.append("/-- Finite native conformance test, not a correctness certificate. -/")
         lines.append(
             f"theorem {fn.name}_sample_{index} :\n"
             f"    {fn.name} {fuel} {arglist} = some {values} := by\n"
-            f"  native_decide"
+            f"  native_decide\n"
         )
-        lines.append("")
-    lines.append(f"end {namespace}")
-    lines.append("")
+    lines.extend([f"end {namespace}", ""])
     return "\n".join(lines)

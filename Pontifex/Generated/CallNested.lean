@@ -132,19 +132,4 @@ theorem advance_link (x : Rat) (v : Rat) (dt : Rat) :
       (Outcome.toOption (Fn.run Ops.rat advanceIR 64 [x, v, dt])).map (fun vs => (vs[0]!, vs[1]!)) :=
   rfl
 
-/-- Sample conformance check on exact rational inputs. -/
-theorem advance_sample_0 :
-    advance 64 (0 : Rat) (1 : Rat) (-1 : Rat) = some ((0 : Rat), (0 : Rat)) := by
-  native_decide
-
-/-- Sample conformance check on exact rational inputs. -/
-theorem advance_sample_1 :
-    advance 64 (1 : Rat) (-1 : Rat) ((1 : Rat) / 2) = some (((5 : Rat) / 4), ((1 : Rat) / 2)) := by
-  native_decide
-
-/-- Sample conformance check on exact rational inputs. -/
-theorem advance_sample_2 :
-    advance 64 (-1 : Rat) ((1 : Rat) / 2) ((3 : Rat) / 7) = some (((-47 : Rat) / 98), ((17 : Rat) / 14)) := by
-  native_decide
-
 end Pontifex.Generated.CallNested

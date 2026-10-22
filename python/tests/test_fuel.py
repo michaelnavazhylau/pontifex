@@ -3,7 +3,6 @@
 from fractions import Fraction
 
 import pytest
-
 from pontifex.frontend import translate
 from pontifex.interp import OutOfFuel, Returned, run_exact, run_float
 from pontifex.pipeline import compare_outcomes, run_lean
@@ -70,4 +69,11 @@ def test_sample_generation_uses_requested_budget(tmp_path):
     )
     text = output.read_text()
     assert "theorem f_link" in text  # the universal certificate still exists
-    assert "native_decide" not in text  # zero fuel cannot produce sample returns
+    assert "native_decide" not in text  # certificates never contain native tests
+    samples = tmp_path / "Branch.samples.lean"
+    assert "f_sample_" not in samples.read_text()  # zero fuel cannot produce sample returns
+    assert (
+        main(["compile", str(source), "--out", str(output), "--fuel", "32", "--with-samples"]) == 0
+    )
+    assert "f_sample_0" in samples.read_text()
+    assert "native_decide" not in output.read_text()

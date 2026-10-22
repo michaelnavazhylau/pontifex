@@ -327,14 +327,4 @@ theorem simulate_link (fuel : Nat) (input0 : Rat) (input1 : Rat) (input2 : Rat) 
   unfold simulate
   rw [simulate_compiled_link]
 
-/-- Sample conformance check on exact rational inputs. -/
-theorem simulate_sample_0 :
-    simulate 64 (0 : Rat) (1 : Rat) (-1 : Rat) ((1 : Rat) / 2) ((3 : Rat) / 7) = some ((1 : Rat), (-1 : Rat)) := by
-  native_decide
-
-/-- Sample conformance check on exact rational inputs. -/
-theorem simulate_sample_1 :
-    simulate 64 (-1 : Rat) ((1 : Rat) / 2) ((3 : Rat) / 7) (0 : Rat) (1 : Rat) = some (((1 : Rat) / 2), ((3 : Rat) / 7)) := by
-  native_decide
-
 end Pontifex.Generated.FreeFallLoop
