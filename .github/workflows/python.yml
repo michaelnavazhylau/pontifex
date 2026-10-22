@@ -15,6 +15,22 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  pi-workflow:
+    name: Pi workflow guards & bridge
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7.0.1
+
+      - name: Install Node
+        uses: actions/setup-node@v6.0.0
+        with:
+          node-version: "24"
+
+      - name: Test deterministic Pi helpers (no model calls or npm install)
+        run: node --test .pi/tests/pontifex.test.mjs
+
   quality:
     name: Format & generated artifacts
     runs-on: ubuntu-latest

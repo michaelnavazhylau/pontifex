@@ -31,8 +31,14 @@ jobs:
           auto-config: false
           build: true
           use-mathlib-cache: false
-          # Replay every module through the kernel after building.
-          leanchecker: true
+          # Replay the certificate root explicitly, not the native test library.
+          leanchecker: false
+
+      - name: Kernel replay of the certificate library
+        run: lake env leanchecker Pontifex
+
+      - name: Finite native conformance tests (outside certificate replay)
+        run: lake build PontifexNativeTests
 
       - name: Report toolchain
         run: lake env lean --version

@@ -63,6 +63,7 @@ import Pontifex.Audit.Command
 #audit_axioms Pontifex.Examples.freeFallLoop_zero_time_total
 #audit_axioms Pontifex.Examples.freeFallLoop_zero_time_partial
 #audit_axioms Pontifex.Spec.symplecticStep_modifiedEnergy
+#audit_axioms Pontifex.Spec.modifiedEnergyGridOk_eq_true
 #audit_axioms Pontifex.Spec.repeatStep_velocity
 #audit_axioms Pontifex.Spec.repeatStep_position_twice
 #audit_axioms Pontifex.Spec.ratNatCast_add

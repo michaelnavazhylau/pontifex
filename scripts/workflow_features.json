@@ -1,0 +1,85 @@
+{
+  "core": {
+    "summary": "Cross-layer language changes and compiler infrastructure",
+    "docs": ["docs/TRUST.md"],
+    "tests": ["python/tests/test_frontend.py", "python/tests/test_interp.py", "python/tests/test_emit.py", "python/tests/test_source.py", "python/tests/test_config.py", "python/tests/test_certificates.py", "python/tests/test_trust_gates.py", "python/tests/test_workflow.py"],
+    "symbols": [
+      {"path": "python/pontifex/pipeline.py", "symbol": "compile_source"},
+      {"path": "python/pontifex/pipeline.py", "symbol": "run_lean"},
+      {"path": "python/pontifex/pipeline.py", "symbol": "compare_outcomes"},
+      {"path": "python/pontifex/frontend.py", "symbol": "translate"},
+      {"path": "python/pontifex/emit.py", "symbol": "emit_module"},
+      {"path": "python/pontifex/emit.py", "symbol": "emit_native_samples"},
+      {"path": "python/pontifex/certify.py", "symbol": "emit_certified"},
+      {"path": "python/tests/lean_helpers.py", "symbol": "check_lean"}
+    ],
+    "hazards": ["Keep generated executable blocks independent of the reference evaluator.", "Assess Python/Lean schema alignment and both JSON codecs; regenerate explicitly.", "Focused tests are not full verification; slow markers do not isolate Lean tests."]
+  },
+  "calls": {
+    "summary": "White-box helper expansion, hoisting, frame hygiene, and compositional certificates",
+    "docs": ["docs/CALLS.md"],
+    "tests": ["python/tests/test_calls.py", "python/tests/test_certificates.py"],
+    "symbols": [
+      {"path": "python/pontifex/source.py", "symbol": "InlineTemp"},
+      {"path": "python/pontifex/inline.py", "symbol": "inline_body"},
+      {"path": "Pontifex/Core/Inline.lean", "symbol": "expand"}
+    ],
+    "hazards": ["Preserve eager arguments, unused arguments, failure order, and fresh private frames.", "Hoisted temporaries must not enter phi merges or loop-carried headers.", "Caller _lowering alone does not establish callee source agreement; use _program_lowering.", "Do not move calls out of short-circuit or repeatedly evaluated conditions to bypass rejection."]
+  },
+  "selection": {
+    "summary": "Eager min/max and lazy scalar conditional expressions",
+    "docs": ["docs/SELECTION.md", "docs/FLOAT_POLICY.md"],
+    "tests": ["python/tests/test_selection.py", "python/tests/test_calls.py"],
+    "symbols": [
+      {"path": "python/pontifex/ir.py", "symbol": "Select"},
+      {"path": "python/pontifex/source.py", "symbol": "Select"},
+      {"path": "python/pontifex/emit.py", "symbol": "needs_checked_backend"},
+      {"path": "Pontifex/Core/Semantics.lean", "symbol": "evalS"}
+    ],
+    "hazards": ["min/max evaluate both operands once, left to right; ties and NaNs retain the original first operand.", "Conditional expressions evaluate only the chosen branch; selection cannot use computed-NaN exemptions.", "Selection uses the certified backend even without statement-level control flow."]
+  },
+  "arrays": {
+    "summary": "Functional arrays, bounds failures, value kinds, phi merges, and store order",
+    "docs": ["docs/TRUST.md"],
+    "tests": ["python/tests/test_frontend.py", "python/tests/test_interp.py", "python/tests/test_certificates.py", "python/tests/test_failures_refinement.py"],
+    "symbols": [
+      {"path": "python/pontifex/ir.py", "symbol": "Set"},
+      {"path": "Pontifex/Core/Semantics.lean", "symbol": "setVal"},
+      {"path": "Pontifex/Core/Semantics.lean", "symbol": "indexVal"}
+    ],
+    "hazards": ["Updates are functional values in tagged slots, not mutable shared references.", "Stores evaluate the RHS before the array and index; invalid indices are explicit failures.", "Array parameters, returns, aliases, and helper-local arrays remain unsupported."]
+  },
+  "float": {
+    "summary": "Raw binary64 transport, arithmetic policy, and exact-vs-native readings",
+    "docs": ["docs/FLOAT_POLICY.md"],
+    "tests": ["python/tests/test_float_boundaries.py", "python/tests/test_float_two_tier.py", "python/tests/test_differential.py", "python/tests/test_selection.py"],
+    "symbols": [
+      {"path": "python/pontifex/interp.py", "symbol": "float_bits"},
+      {"path": "python/pontifex/pipeline.py", "symbol": "compare_outcomes"},
+      {"path": "Pontifex/Core/FloatSpec.lean", "symbol": "add_bits"}
+    ],
+    "hazards": ["Preserve signed zeros and NaN payloads; use bit comparisons, not approximate equality.", "Only computed arithmetic NaNs have a narrow counted exemption; never broaden it automatically.", "Native arithmetic agreement is tested, not proved; this is not Python's complete numeric tower."]
+  },
+  "proofs": {
+    "summary": "Proof routing, polynomial normalization, fuel refinement, and spec links",
+    "docs": ["docs/STEP_TACTIC.md", "docs/TRUST.md"],
+    "tests": ["python/tests/test_step_tactic.py", "python/tests/test_rat_ring.py", "python/tests/test_fuel.py", "python/tests/test_failures_refinement.py", "python/tests/test_trust_gates.py"],
+    "symbols": [
+      {"path": "Pontifex/Core/Refinement.lean", "symbol": "exec_mono"},
+      {"path": "Pontifex/Core/Refinement.lean", "symbol": "total_to_partial"},
+      {"path": "Pontifex/Examples/StepDemo.lean", "symbol": "freeFall_step_velocity"}
+    ],
+    "hazards": ["rat_ring handles integer-coefficient polynomials; clear rational literal denominators first.", "Rewrite certified wrappers with _compiled_link instead of unfolding literal-fuel execution.", "Exhaustion is not divergence; partial correctness is not termination.", "Native samples belong only in NativeTests.lean / PontifexNativeTests, never certificate imports."]
+  },
+  "lowering": {
+    "summary": "Reference lowering, SSA merges, structured fuel, and kernel reduction cost",
+    "docs": ["docs/TRUST.md", "docs/CALLS.md"],
+    "tests": ["python/tests/test_source.py", "python/tests/test_certificates.py", "python/tests/test_fuel.py", "python/tests/test_calls.py"],
+    "symbols": [
+      {"path": "Pontifex/Core/Lower.lean", "symbol": "lowerRec"},
+      {"path": "Pontifex/Core/Lower.lean", "symbol": "lowerBody"},
+      {"path": "python/tests/test_certificates.py", "symbol": "test_long_block_lowering_is_kernel_checked"}
+    ],
+    "hazards": ["Retain kernel-reducible reference algorithms; lowerRec is intentionally proof-only/noncomputable.", "Preserve the linear-cost regression before raising heartbeat budgets.", "Fuel is structured execution depth, not a global instruction counter."]
+  }
+}

@@ -121,10 +121,12 @@ uv sync                        # Python tooling (pytest, hypothesis, pillow)
 lake build                     # Lean library, generated examples, axiom audit, runner
 make check                     # freshness + audit + corpora + full test suite
 
-python scripts/generate.py     # regenerate Pontifex/Generated/*.lean + audit
+python scripts/generate.py     # regenerate certificates, audit, NativeTests.lean
+make native-tests              # explicit finite native test target (not proofs)
 make corpus                    # CPython ↔ IR ↔ Lean differential corpus
 make float-boundaries          # 100k binary64 patterns + IEEE edge cases
 make rejections                # refresh rejection diagnostics after review
+# Checks do not regenerate: run `make gen` explicitly after generator changes.
 ```
 
 Translate and inspect a function:
@@ -136,7 +138,16 @@ uv run python -m pontifex eval  examples/free_fall.py --args 1,2,3,4
 uv run python -m pontifex eval  examples/free_fall.py --args=-0.0 --float
 uv run python -m pontifex compile examples/free_fall.py \
     --out /tmp/FreeFall.lean --json /tmp/ff.json --with-samples
+lake env lean /tmp/FreeFall.lean          # kernel certificates only
+lake env lean /tmp/FreeFall.samples.lean  # separate standalone native TEST input
 ```
+
+`--with-samples` never inserts native tests into `--out`: it additionally writes
+`<stem>.samples.lean`, embedding the translation so it can be checked standalone
+without a Lake import path for `/tmp`. Do not import it alongside the certificate
+(it repeats declarations), or add scratch native files to checked-in source.
+The checked-in samples live only in `NativeTests.lean`, built by the explicit
+`PontifexNativeTests` target; the default library never imports them.
 
 The Lean oracle used by differential tests:
 
@@ -310,7 +321,8 @@ expressions, scalar truthiness, or tuple unpacking.
 ## Validation
 
 ```text
-589 tests (frontend, interpreter, Lean proofs, corpora)
+626 pytest tests (frontend, interpreter, Lean proofs, corpora, workflow)
+11 Node tests (Pi artifact guards and workflow bridge)
 32-program differential corpus · CPython / exact IR / binary64 IR / Lean oracle
 91 rejected programs with committed diagnostics
 100,000 random binary64 patterns + IEEE edge cases → 296,700 comparisons,
@@ -318,9 +330,21 @@ expressions, scalar truthiness, or tuple unpacking.
 ```
 
 `make check` wires together formatting, generated-artifact freshness, the
-build-time axiom audit, rejection snapshot checks, the differential corpus, the
-Float boundary run, and the pytest suite. The diagram in this README is
+build-time axiom audit, separate finite native tests, rejection snapshot checks,
+the differential corpus, the Float boundary run, and the pytest suite. The diagram in this README is
 generated from `scripts/render_pipeline_gif.py` (dev dependency: Pillow).
+
+### Agent workflows
+
+Project-local Pi skills route compiler changes and proof work to reusable helpers
+and targeted references. `/pontifex lookup calls` locates live symbols;
+`/pontifex plan focused calls,selection` previews validation. The tool is exposed
+through codemode, generated artifacts are guarded against accidental direct edits,
+and reports distinguish focused success from full verification.
+
+Without Pi: `uv run --locked --no-sync python scripts/pontifex_workflow.py --help`.
+See [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md) for setup, coverage, logs,
+cache invalidation, and guard limitations.
 
 ### Continuous integration
 
@@ -329,8 +353,8 @@ points at one layer:
 
 | Workflow | Trigger | Checks |
 | --- | --- | --- |
-| `lean.yml` | push to `main`, PR | `lake build` (including the generated axiom audit) plus a full `leanchecker` kernel replay |
-| `python.yml` | push to `main`, PR | `ruff format --check`, generated-artifact and rejection-snapshot freshness, and the full pytest suite on Python 3.10 and 3.13 |
+| `lean.yml` | push to `main`, PR | `lake build` (including the axiom audit), `leanchecker Pontifex` kernel replay, then the separate `PontifexNativeTests` target |
+| `python.yml` | push to `main`, PR | `ruff format --check`, generated-artifact and rejection-snapshot freshness, the full pytest suite on Python 3.10 and 3.13, and Node guard/bridge checks |
 | `corpus.yml` | push to `main`, PR | 32-program differential corpus and the 100,000-pattern binary64 boundary corpus |
 | `nightly.yml` | daily 04:17 UTC | Re-runs all three with 256 corpus samples, 1,000,000 float patterns, and 32,768 arithmetic cases |
 
@@ -433,6 +457,8 @@ certificate** for its small language.
 * [`docs/FLOAT_POLICY.md`](docs/FLOAT_POLICY.md) — bits, NaNs, failures, power,
   two-tier specs, and the native-arithmetic boundary.
 * [`docs/STEP_TACTIC.md`](docs/STEP_TACTIC.md) — `pontifex_step` usage and limits.
+* [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md) — Pi skills, reuse index,
+  source-preserving validation, coverage reports, and artifact guards.
 * [`docs/CALLS.md`](docs/CALLS.md) — bounded white-box calls and compositional evidence.
 * [`docs/SELECTION.md`](docs/SELECTION.md) — eager `min`/`max`, lazy conditionals, schema migration.
 * [`docs/RELATED_WORK.md`](docs/RELATED_WORK.md) — Charon/Aeneas review and

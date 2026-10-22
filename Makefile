@@ -3,7 +3,7 @@
 PY ?= python3
 LAKE ?= lake
 
-.PHONY: all lean gen test check clean fmt fmt-check corpus rejections float-boundaries
+.PHONY: all lean gen test check clean fmt fmt-check lint corpus rejections float-boundaries native-tests workflow-plan workflow-check
 
 all: lean test
 
@@ -11,7 +11,11 @@ all: lean test
 lean:
 	$(LAKE) build
 
-## Regenerate the checked-in translations of examples/
+## Explicit native sample tests (not correctness certificates / default build)
+native-tests:
+	$(LAKE) build PontifexNativeTests
+
+## Regenerate the checked-in translations of examples/ and native tests
 gen:
 	$(PY) scripts/generate.py
 
@@ -28,10 +32,11 @@ rejections:
 	$(PY) scripts/update_rejections.py
 
 ## CI-style: format + generated artifacts fresh + Python tests + Lean build + audit
-check: fmt-check gen
+check: fmt-check
 	$(PY) scripts/generate.py --check
 	$(PY) scripts/update_rejections.py --check
 	$(LAKE) build
+	$(LAKE) build PontifexNativeTests
 	$(PY) scripts/run_corpus.py --samples 8
 	uv run python scripts/check_float_boundaries.py
 	uv run pytest
@@ -44,7 +49,17 @@ fmt-check:
 
 fmt:
 	uv run ruff format python scripts
-	uv run ruff check --fix python scripts 2>/dev/null || true
+
+## Lint is separate from formatting; failures are never suppressed.
+lint:
+	uv run ruff check python scripts
+
+## Read-only source checks; use `make gen` explicitly when artifacts are stale.
+workflow-plan:
+	uv run --locked --no-sync python scripts/pontifex_workflow.py plan --profile focused
+
+workflow-check:
+	uv run --locked --no-sync python scripts/pontifex_workflow.py validate --profile full
 
 clean:
 	rm -rf .lake/build build/ir/*.json .pytest_cache python/.pytest_cache

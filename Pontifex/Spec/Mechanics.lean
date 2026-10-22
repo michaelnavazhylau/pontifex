@@ -17,11 +17,10 @@
   `Pontifex.Core.Ops` and is exercised by the differential harness instead of by
   these proofs.
 
-  Proof-power note: in a core-Lean build there is no `ring` tactic.  The lemmas
-  below are therefore restricted to identities that hold by unfolding,
-  distributing and re-associating terms (handled by `rat_simp`).  Identities
-  that require *combining coefficients* (e.g. `2 * (1/2) = 1`, or
-  `n·(n+1) + 2·(n+1) = (n+1)·(n+2)`) are out of reach; see docs/TRUST.md.
+  Proof-power note: `rat_simp` handles distribution and re-association;
+  `rat_ring` is a kernel-checked integer-coefficient polynomial normalizer.
+  General rational literal coefficients still require denominator clearing;
+  see docs/TRUST.md.
 -/
 import Std
 import Pontifex.Core.Semantics
@@ -95,13 +94,9 @@ theorem symplecticStep_modifiedEnergy (omega2 dt x v : Rat) :
   simp only [modifiedEnergy, symplecticStep]
   rat_ring
 
-/-- The previous finite-grid check, kept as a build-time regression test.
-
-    This is *only* a finite check (9 × 9 × 5 rational states) performed by
-    compiled evaluation; it is not a proof of the invariant.  The general
-    identity is a degree-3 polynomial identity requiring cancellation of
-    opposing cubic terms, which core Lean cannot do without a ring tactic.
-    See docs/TRUST.md, "Gap 1". -/
+/-- The previous finite grid (9 × 9 × 5 rational states).
+    Its correctness now follows in the kernel from the universal invariant,
+    without evaluating opaque rational arithmetic or trusting native code. -/
 def modifiedEnergyGridOk : Bool :=
   (List.range 9).all fun xi =>
     (List.range 9).all fun vi =>
@@ -114,6 +109,6 @@ def modifiedEnergyGridOk : Bool :=
         modifiedEnergy 7 dt s' == modifiedEnergy 7 dt s
 
 theorem modifiedEnergyGridOk_eq_true : modifiedEnergyGridOk = true := by
-  native_decide
+  simp [modifiedEnergyGridOk, symplecticStep_modifiedEnergy]
 
 end Pontifex.Spec

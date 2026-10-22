@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from test_certificates import check_lean
+from lean_helpers import check_lean
 
 PRELUDE = """import Pontifex.Step
 import Pontifex.Generated.FreeFall

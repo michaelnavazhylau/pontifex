@@ -2,12 +2,16 @@ name = "pontifex"
 version = "0.1.0"
 defaultTargets = ["Pontifex", "pontifex"]
 
-# Core-Lean-only build (no Mathlib, no Physlib).  See docs/TRUST.md for the
-# consequences: everything in `Pontifex/Core` is proved, but general polynomial
-# identities over `Rat` cannot be discharged without a ring tactic, so domain
-# proofs that need one are marked in `Pontifex/Spec/Mechanics.lean`.
+# Core-Lean-only build (no Mathlib, no Physlib). Integer-coefficient Rat
+# identities use the kernel-checked rat_ring tactic; see docs/TRUST.md.
 [[lean_lib]]
 name = "Pontifex"
+
+# Explicit finite native test target, deliberately excluded from defaultTargets
+# and from the Pontifex library's import closure / kernel certificate replay.
+[[lean_lib]]
+name = "PontifexNativeTests"
+roots = ["NativeTests"]
 
 [[lean_exe]]
 name = "pontifex"

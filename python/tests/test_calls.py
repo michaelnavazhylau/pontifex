@@ -16,7 +16,7 @@ from pontifex.pipeline import compare_outcomes, compile_source, load_python_func
 from pontifex.source import InlineCall, desugar
 from pontifex.source import Ret as SourceRet
 
-from test_certificates import check_lean
+from lean_helpers import check_lean
 
 
 PROGRAMS = {

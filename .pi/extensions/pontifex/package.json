@@ -1,0 +1,9 @@
+{
+  "name": "pontifex-pi-workflow",
+  "private": true,
+  "type": "module",
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}

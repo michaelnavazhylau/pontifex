@@ -20,6 +20,11 @@ Ordered by value per unit of risk, derived from the current trust report
 - `docs/TRUST.md` (status matrix, gaps) is updated in the same change;
 - new behavior has a regression test that fails if the feature is reverted.
 
+Agent tooling: project-local change/proof skills, generated-artifact guards, a
+live reuse index, and source-preserving validation profiles are implemented; see
+[`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md). These wrap the existing gates
+and do not implement the separate `pontifex check` language-capability preflight.
+
 Sizes: **S** ≤ 1 day, **M** 2–4 days, **L** > 1 week.
 
 ---
@@ -423,6 +428,18 @@ linear certificate cost.
 ---
 
 ## P4 — research options (not scheduled)
+
+### ✅ F8. Isolate native build-time checks ([#14](https://github.com/michaelnavazhylau/pontifex/issues/14))
+
+Implemented: generated certificates contain no native sample proofs. The remaining
+finite checks live only in generated `NativeTests.lean`, behind the explicit
+nondefault `PontifexNativeTests` target. CLI samples also use a separate standalone
+test artifact. The harmonic energy grid is now a kernel corollary of the universal
+invariant and is axiom-audited. Regression gates reject native tactics and native
+module imports elsewhere, including deceptively labelled sample theorems.
+CI and `make check` run the native target separately from certificate replay.
+
+### Remaining research directions
 
 - **CFG-first IR** (ULLBC analogue) with a separately verified structuring pass
   and a `--unstructured` fallback. Unlocks irreducible control flow and makes

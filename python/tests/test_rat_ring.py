@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from conftest import ROOT
-from test_certificates import check_lean
+from lean_helpers import check_lean
 
 PRELUDE = """import Pontifex.Core.PolyTactic
 import Pontifex.Spec.FreeFall

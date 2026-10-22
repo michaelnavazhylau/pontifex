@@ -14,12 +14,12 @@ import sys
 from fractions import Fraction
 from pathlib import Path
 
+from .emit import emit_native_samples
 from .errors import PontifexError
-from .emit import emit_module
 from .pipeline import (
     compile_file,
+    conformance_pairs,
     default_namespace,
-    default_samples,
     find_lean_exe,
     run_exact,
     run_float,
@@ -73,29 +73,25 @@ def cmd_emit(args: argparse.Namespace) -> int:
 def cmd_compile(args: argparse.Namespace) -> int:
     artifacts = _compiled(args)
     namespace = args.namespace or default_namespace(Path(args.file).stem)
-    conformance = []
+    output = Path(args.out)
+    output.write_text(artifacts.lean_source)
+    written = [str(output)]
     if args.with_samples:
-        fn = artifacts.fn
-        exact = []
-        from .interp import Returned, run_exact as run
-
-        for sample in default_samples(fn):
-            out = run(fn, sample, fuel=args.fuel)
-            if isinstance(out, Returned):
-                exact.append((sample, out.values))
-        conformance = exact
-    lean = emit_module(
-        artifacts.translated,
-        namespace=namespace,
-        fuel=args.fuel,
-        conformance=conformance,
-        generator=f"python -m pontifex compile {args.file}"
-        + (f" --function {args.function}" if args.function else ""),
-    )
-    Path(args.out).write_text(lean)
+        # Standalone test input: embedding the same certificate avoids assuming
+        # a Lake module path for arbitrary --out paths (including /tmp).
+        samples = emit_native_samples(
+            artifacts.fn,
+            namespace=namespace,
+            fuel=args.fuel,
+            conformance=conformance_pairs(artifacts, fuel=args.fuel),
+        )
+        sample_path = output.with_name(f"{output.stem}.samples.lean")
+        sample_path.write_text(artifacts.lean_source + samples)
+        written.append(str(sample_path))
     if args.json:
         Path(args.json).write_text(artifacts.ir_json)
-    print(f"wrote {args.out}" + (f" and {args.json}" if args.json else ""))
+        written.append(str(args.json))
+    print("wrote " + " and ".join(written))
     return 0
 
 
@@ -146,7 +142,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_compile.add_argument(
         "--with-samples",
         action="store_true",
-        help="emit native_decide conformance checks for sample inputs",
+        help="write a separate standalone <stem>.samples.lean native test module, not certificates",
     )
     p_compile.set_defaults(func=cmd_compile)
 

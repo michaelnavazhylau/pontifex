@@ -10,5 +10,8 @@ __pycache__/
 *.egg-info/
 dist/
 
+# Local validation reports and complete logs (never model context)
+/.pi/state/
+
 # OS
 .DS_Store

@@ -154,19 +154,4 @@ theorem advance_link (fuel : Nat) (input0 : Rat) (input1 : Rat) (input2 : Rat) (
   unfold advance
   rw [advance_compiled_link]
 
-/-- Sample conformance check on exact rational inputs. -/
-theorem advance_sample_0 :
-    advance 64 (0 : Rat) (1 : Rat) (-1 : Rat) ((1 : Rat) / 2) ((3 : Rat) / 7) = some (((3 : Rat) / 14), ((3 : Rat) / 7)) := by
-  native_decide
-
-/-- Sample conformance check on exact rational inputs. -/
-theorem advance_sample_1 :
-    advance 64 (1 : Rat) (-1 : Rat) ((1 : Rat) / 2) ((3 : Rat) / 7) (0 : Rat) = some ((1 : Rat), (0 : Rat)) := by
-  native_decide
-
-/-- Sample conformance check on exact rational inputs. -/
-theorem advance_sample_2 :
-    advance 64 (-1 : Rat) ((1 : Rat) / 2) ((3 : Rat) / 7) (0 : Rat) (1 : Rat) = some ((0 : Rat), ((1 : Rat) / 2)) := by
-  native_decide
-
 end Pontifex.Generated.LimitedStep

@@ -1,4 +1,4 @@
-# White-box calls (T13, first slice)
+# White-box calls (T13, bounded expansion and expression hoisting)
 
 Select an entry point explicitly when a module has multiple functions:
 

@@ -6,22 +6,27 @@ import json
 import os
 import subprocess
 import tempfile
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any
 
-from .emit import emit_module
+from .emit import emit_module, emit_native_samples
 from .frontend import Translated, translate
 from .interp import (
-    Interpreter,
+    DEFAULT_FUEL,
     Outcome,
     Returned,
-    DEFAULT_FUEL,
     rat_string,
     run_exact,
-    run_float,
     to_option,
+)
+from .interp import (
+    Interpreter as Interpreter,  # noqa: PLC0414 -- compatibility re-export
+)
+from .interp import (
+    run_float as run_float,  # noqa: PLC0414 -- compatibility re-export
 )
 
 
@@ -30,6 +35,8 @@ class Artifacts:
     translated: Translated
     lean_source: str
     ir_json: str
+    # Optional standalone TEST module. Never part of lean_source's certificate.
+    native_samples_source: str = ""
 
     @property
     def fn(self):
@@ -51,10 +58,19 @@ def compile_source(
         translated,
         namespace=namespace,
         fuel=fuel,
-        conformance=conformance,
         generator=generator,
     )
-    return Artifacts(translated=translated, lean_source=lean, ir_json=translated.fn.to_json_text())
+    samples = ""
+    if conformance:
+        samples = lean + emit_native_samples(
+            translated.fn, namespace=namespace, fuel=fuel, conformance=conformance
+        )
+    return Artifacts(
+        translated=translated,
+        lean_source=lean,
+        ir_json=translated.fn.to_json_text(),
+        native_samples_source=samples,
+    )
 
 
 def compile_file(
@@ -198,7 +214,7 @@ def run_lean(
 
 
 def _decode_outcome(item: dict[str, Any]) -> Outcome:
-    from .interp import FellThrough, OutOfFuel, Failed, Stuck
+    from .interp import Failed, FellThrough, OutOfFuel, Stuck
 
     kind = item["kind"]
     if kind == "failed":
@@ -305,13 +321,18 @@ def default_samples(fn) -> list[tuple[Fraction, ...]]:
     return samples
 
 
-def conformance_pairs(artifacts: Artifacts, samples: Iterable[Sequence[Fraction]] | None = None):
+def conformance_pairs(
+    artifacts: Artifacts,
+    samples: Iterable[Sequence[Fraction]] | None = None,
+    *,
+    fuel: int = DEFAULT_FUEL,
+):
     """Compute expected outputs with the exact IR interpreter."""
     fn = artifacts.fn
     inputs = list(samples) if samples is not None else default_samples(fn)
     pairs = []
     for args in inputs:
-        out = run_exact(fn, args)
+        out = run_exact(fn, args, fuel=fuel)
         if isinstance(out, Returned):
             pairs.append((tuple(args), out.values))
     return pairs
